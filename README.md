@@ -26,6 +26,20 @@ To inspect the install without launching the app:
 .\health-check.ps1
 ```
 
+Or double-click `CHECK_INSTALL_WINDOWS.bat`.
+
+If something fails, see `TROUBLESHOOTING.md`.
+
+## Release Zip
+
+Maintainers can build a clean release zip from tracked files only:
+
+```powershell
+.\make-release-zip.ps1
+```
+
+The zip is written to `dist` and excludes runtime data, local memory, session logs, model files, and local override config.
+
 ## Manual Run
 
 Open the desktop app:
