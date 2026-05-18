@@ -123,6 +123,7 @@ if (-not $ollama) {
 }
 
 $modelDir = Resolve-ModelDir
+$modelName = if ($env:RONIN_MODEL_NAME) { $env:RONIN_MODEL_NAME } else { 'ronin' }
 if ($modelDir -like 'C:\Users\*\.ollama*') {
     Write-Host "Warning: model directory appears to be on C: $modelDir" -ForegroundColor Yellow
 }
@@ -141,16 +142,19 @@ New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
 `$env:RONIN_OLLAMA_EXE = '$ollama'
 `$env:RONIN_OLLAMA_MODELS = '$modelDir'
 `$env:OLLAMA_MODELS = '$modelDir'
+`$env:RONIN_MODEL_NAME = '$modelName'
 "@ | Set-Content -LiteralPath $localConfig -Encoding UTF8
 
 $env:RONIN_OLLAMA_EXE = $ollama
 $env:RONIN_OLLAMA_MODELS = $modelDir
 $env:OLLAMA_MODELS = $modelDir
+$env:RONIN_MODEL_NAME = $modelName
 
 Write-Host "Python: $python"
 Write-Host "Pythonw: $(if ($pythonw) { $pythonw } else { 'not found' })"
 Write-Host "Ollama: $ollama"
 Write-Host "Models: $modelDir"
+Write-Host "Model name: $modelName"
 Write-Host ''
 
 try {
@@ -164,13 +168,22 @@ try {
 }
 
 $modelList = (& $ollama list) -join "`n"
-if ($modelList -notmatch '(?m)^ronin(?::latest)?\s') {
-    Write-Host 'Creating the local ronin model. First run may download the small base model.' -ForegroundColor DarkYellow
+$modelPattern = "(?m)^$([regex]::Escape($modelName))(?::latest)?\s"
+if ($modelList -notmatch $modelPattern) {
+    Write-Host "Creating the local $modelName model. First run may download the small base model." -ForegroundColor DarkYellow
     Write-Host 'This can take a while, and the model files will be stored in the model directory above.' -ForegroundColor Gray
-    & $ollama create ronin -f (Join-Path $appDir 'Modelfile')
+    & $ollama create $modelName -f (Join-Path $appDir 'Modelfile')
 } else {
-    Write-Host 'Ronin model already exists.' -ForegroundColor Green
+    Write-Host "$modelName model already exists." -ForegroundColor Green
 }
+
+$settingsPath = Join-Path $appDir 'data\settings.json'
+@{
+    model_name = $modelName
+    ollama_exe = $ollama
+    ollama_models = $modelDir
+    ollama_api = 'http://127.0.0.1:11434'
+} | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $settingsPath -Encoding UTF8
 
 & (Join-Path $appDir 'install-shortcut.ps1') | Out-Host
 & (Join-Path $appDir 'health-check.ps1') | Out-Host

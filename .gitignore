@@ -7,6 +7,7 @@ dist/
 ronin.local.ps1
 
 data/memory.json
+data/settings.json
 data/vault.json
 data/*.tmp
 data/ollama-models/

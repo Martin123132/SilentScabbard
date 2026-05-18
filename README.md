@@ -63,6 +63,7 @@ The app resolves paths dynamically:
 - app folder: folder containing `ronin_desktop.pyw`
 - local app data: `data`
 - memory file: `data\memory.json`
+- settings file: `data\settings.json`
 - vault file: `data\vault.json`
 - session logs: `data\sessions`
 
@@ -73,7 +74,20 @@ $env:RONIN_OLLAMA_EXE = 'D:\AI\Ollama\app\ollama.exe'
 $env:RONIN_OLLAMA_MODELS = 'D:\AI\Ollama\models'
 ```
 
-For a permanent local override, create `ronin.local.ps1`. This file is ignored by Git.
+For a permanent local override, use the Settings window or create `ronin.local.ps1`. This file is ignored by Git.
+
+## Settings
+
+Click the gear button in the top bar to open Settings.
+
+Settings can edit:
+
+- Ollama executable path
+- model storage path
+- model name
+- local Ollama API URL
+
+The Settings window can also run a health check, open the Vault, open the local data folder, and rebuild the local model from `Modelfile`.
 
 ## Memory
 
@@ -105,7 +119,7 @@ search vault: words to find
 vault
 ```
 
-The gear button opens the vault viewer. From there you can search, save the last exchange, delete selected items, or promote a selected vault title into memory.
+Open the Vault from Settings, or use the `vault` command. From there you can search, save the last exchange, delete selected items, or promote a selected vault title into memory.
 
 ## Rebuild The Personality
 

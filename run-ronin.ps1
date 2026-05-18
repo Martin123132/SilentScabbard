@@ -39,6 +39,7 @@ if (-not $env:OLLAMA_MODELS) {
 
 New-Item -ItemType Directory -Force -Path $env:OLLAMA_MODELS | Out-Null
 $ollama = Find-Ollama
+$modelName = if ($env:RONIN_MODEL_NAME) { $env:RONIN_MODEL_NAME } else { 'ronin' }
 
 try {
     Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/version' -TimeoutSec 2 | Out-Null
@@ -54,4 +55,4 @@ try {
     }
 }
 
-& $ollama run ronin
+& $ollama run $modelName

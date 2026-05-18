@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0
+
+- Added a Settings window behind the gear button.
+- Added editable Ollama executable, model storage, model name, and API URL settings.
+- Persisted app settings to `data\settings.json`.
+- Wrote local overrides to `ronin.local.ps1` when settings are saved.
+- Added in-app health check, data-folder shortcut, Vault shortcut, and model rebuild action.
+- Updated command-line health and run scripts to respect the configured model name.
+
 ## 0.1.0
 
 Initial public foundation for SilentScabbard / Ronin.

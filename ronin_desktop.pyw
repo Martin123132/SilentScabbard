@@ -8,6 +8,7 @@ import time
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
+from tkinter import filedialog
 from tkinter import font as tkfont
 from urllib import error, request
 
@@ -49,10 +50,11 @@ DATA_DIR = BASE_DIR / "data"
 SESSIONS_DIR = DATA_DIR / "sessions"
 MEMORY_FILE = DATA_DIR / "memory.json"
 VAULT_FILE = DATA_DIR / "vault.json"
-OLLAMA_EXE = _resolve_ollama_exe()
-OLLAMA_MODELS = _resolve_ollama_models()
-OLLAMA_API = "http://127.0.0.1:11434"
-MODEL_NAME = "ronin"
+SETTINGS_FILE = DATA_DIR / "settings.json"
+DEFAULT_OLLAMA_EXE = _resolve_ollama_exe()
+DEFAULT_OLLAMA_MODELS = _resolve_ollama_models()
+DEFAULT_OLLAMA_API = "http://127.0.0.1:11434"
+DEFAULT_MODEL_NAME = os.environ.get("RONIN_MODEL_NAME") or "ronin"
 
 HIT_RECTS = {
     "model": (1202, 24, 1414, 62),
@@ -96,6 +98,11 @@ class RoninApp(tk.Tk):
         self.memory_enabled = True
         self.memory = []
         self.vault = []
+        self.settings = {}
+        self.ollama_exe = DEFAULT_OLLAMA_EXE
+        self.ollama_models = DEFAULT_OLLAMA_MODELS
+        self.ollama_api = DEFAULT_OLLAMA_API
+        self.model_name = DEFAULT_MODEL_NAME
         self.data_lock = threading.Lock()
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_jsonl = SESSIONS_DIR / f"{self.session_id}.jsonl"
@@ -116,9 +123,90 @@ class RoninApp(tk.Tk):
             MEMORY_FILE.write_text('{"memories": []}\n', encoding="utf-8")
         if not VAULT_FILE.exists():
             VAULT_FILE.write_text('{"items": []}\n', encoding="utf-8")
+        if not SETTINGS_FILE.exists():
+            self._save_settings(self._default_settings(), write_local_override=False)
+        self.settings = self._load_settings()
+        self._apply_settings(self.settings)
         self.memory = self._load_memory()
         self.vault = self._load_vault()
         self._append_session_event("system", "Session opened.")
+
+    def _default_settings(self):
+        return {
+            "model_name": DEFAULT_MODEL_NAME,
+            "ollama_exe": str(DEFAULT_OLLAMA_EXE) if DEFAULT_OLLAMA_EXE else "",
+            "ollama_models": DEFAULT_OLLAMA_MODELS,
+            "ollama_api": DEFAULT_OLLAMA_API,
+        }
+
+    def _current_settings(self):
+        return {
+            "model_name": self.model_name,
+            "ollama_exe": str(self.ollama_exe) if self.ollama_exe else "",
+            "ollama_models": self.ollama_models,
+            "ollama_api": self.ollama_api,
+        }
+
+    def _load_settings(self):
+        settings = self._default_settings()
+        try:
+            raw = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raw = {}
+
+        if isinstance(raw, dict):
+            for key in settings:
+                value = raw.get(key)
+                if isinstance(value, str) and value.strip():
+                    settings[key] = value.strip()
+        return settings
+
+    def _save_settings(self, settings, write_local_override=True):
+        clean = self._clean_settings(settings)
+        tmp_file = SETTINGS_FILE.with_suffix(".json.tmp")
+        tmp_file.write_text(json.dumps(clean, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        tmp_file.replace(SETTINGS_FILE)
+        if write_local_override:
+            self._write_local_override(clean)
+        return clean
+
+    def _clean_settings(self, settings):
+        defaults = self._default_settings()
+        clean = {}
+        for key, default in defaults.items():
+            value = settings.get(key, default) if isinstance(settings, dict) else default
+            value = str(value).strip() if value is not None else ""
+            clean[key] = value or default
+        clean["ollama_api"] = clean["ollama_api"].rstrip("/")
+        clean["model_name"] = re.sub(r"\s+", "-", clean["model_name"])
+        return clean
+
+    def _apply_settings(self, settings):
+        clean = self._clean_settings(settings)
+        self.settings = clean
+        self.model_name = clean["model_name"]
+        self.ollama_exe = Path(clean["ollama_exe"]) if clean["ollama_exe"] else None
+        self.ollama_models = clean["ollama_models"]
+        self.ollama_api = clean["ollama_api"]
+        os.environ["OLLAMA_MODELS"] = self.ollama_models
+        os.environ["RONIN_MODEL_NAME"] = self.model_name
+        if self.ollama_exe:
+            os.environ["RONIN_OLLAMA_EXE"] = str(self.ollama_exe)
+        os.environ["RONIN_OLLAMA_MODELS"] = self.ollama_models
+
+    def _write_local_override(self, settings):
+        config_file = BASE_DIR / "ronin.local.ps1"
+        lines = [
+            f"$env:RONIN_OLLAMA_EXE = '{self._ps_escape(settings.get('ollama_exe', ''))}'",
+            f"$env:RONIN_OLLAMA_MODELS = '{self._ps_escape(settings.get('ollama_models', ''))}'",
+            f"$env:OLLAMA_MODELS = '{self._ps_escape(settings.get('ollama_models', ''))}'",
+            f"$env:RONIN_MODEL_NAME = '{self._ps_escape(settings.get('model_name', DEFAULT_MODEL_NAME))}'",
+            "",
+        ]
+        config_file.write_text("\n".join(lines), encoding="utf-8")
+
+    def _ps_escape(self, value):
+        return str(value).replace("'", "''")
 
     def _load_memory(self):
         try:
@@ -432,16 +520,13 @@ class RoninApp(tk.Tk):
             return
 
         if target == "model":
-            self._show_meaning(f"Model: {MODEL_NAME}. The blade is local.")
+            self._show_meaning(f"Model: {self.model_name}. The blade is local.")
             self._set_status("MODEL READY")
             return
 
         if target == "settings":
-            self.vault = self._load_vault()
-            count = len(self.vault)
-            self._show_meaning(f"Vault holds {count} saved scroll{'s' if count != 1 else ''} on D.")
-            self._set_status("VAULT OPEN")
-            self.open_vault_viewer()
+            self._show_meaning("Settings open. The forge has handles now.")
+            self.open_settings_viewer()
             return
 
         if target == "memory":
@@ -559,6 +644,290 @@ class RoninApp(tk.Tk):
         view.insert("1.0", text)
         view.configure(state="disabled")
         return view
+
+    def open_settings_viewer(self):
+        self._set_status("SETTINGS OPEN")
+        modal, body = self._make_modal("Settings", width=920, height=650)
+
+        fields = {}
+
+        def add_field(label_text, key, browse_kind=None):
+            row = tk.Frame(body, bg="#11100d")
+            row.pack(fill="x", pady=(0, 10))
+            tk.Label(
+                row,
+                text=label_text,
+                bg="#11100d",
+                fg="#d4b978",
+                font=self.font_status,
+                anchor="w",
+                width=18,
+            ).pack(side="left")
+            entry = tk.Entry(
+                row,
+                bg="#15130f",
+                fg="#e1d6c0",
+                insertbackground="#e1d6c0",
+                relief="flat",
+                bd=0,
+                font=self.font_meaning,
+            )
+            entry.insert(0, self._current_settings().get(key, ""))
+            entry.pack(side="left", fill="x", expand=True, ipady=7)
+            fields[key] = entry
+
+            if browse_kind:
+                def browse():
+                    if browse_kind == "file":
+                        path = filedialog.askopenfilename(
+                            parent=modal,
+                            title="Choose ollama.exe",
+                            filetypes=[("Ollama executable", "ollama.exe"), ("Executable", "*.exe"), ("All files", "*.*")],
+                        )
+                    else:
+                        path = filedialog.askdirectory(parent=modal, title="Choose model storage folder")
+                    if path:
+                        entry.delete(0, "end")
+                        entry.insert(0, path)
+
+                self._modal_button(row, "Browse", browse).pack(side="left", padx=(10, 0))
+
+        add_field("Model name", "model_name")
+        add_field("Ollama executable", "ollama_exe", "file")
+        add_field("Model storage", "ollama_models", "directory")
+        add_field("Ollama API", "ollama_api")
+
+        output_frame = tk.Frame(body, bg="#11100d")
+        output_frame.pack(fill="both", expand=True, pady=(8, 0))
+        output = tk.Text(
+            output_frame,
+            bg="#15130f",
+            fg="#e1d6c0",
+            insertbackground="#e1d6c0",
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=12,
+            wrap="word",
+            font=self.font_status,
+            height=12,
+        )
+        output_scroll = tk.Scrollbar(output_frame, command=output.yview)
+        output.configure(yscrollcommand=output_scroll.set)
+        output.pack(side="left", fill="both", expand=True)
+        output_scroll.pack(side="right", fill="y")
+
+        def set_output(text):
+            output.configure(state="normal")
+            output.delete("1.0", "end")
+            output.insert("1.0", text)
+            output.configure(state="disabled")
+
+        def settings_from_fields():
+            return {
+                "model_name": fields["model_name"].get().strip(),
+                "ollama_exe": fields["ollama_exe"].get().strip(),
+                "ollama_models": fields["ollama_models"].get().strip(),
+                "ollama_api": fields["ollama_api"].get().strip(),
+            }
+
+        def save_settings():
+            settings = self._save_settings(settings_from_fields())
+            self._apply_settings(settings)
+            self._append_session_event("system", "Settings saved.")
+            warning = self._settings_warning(settings)
+            message = "Settings saved to data/settings.json and ronin.local.ps1."
+            if warning:
+                message += "\n\n" + warning
+            set_output(message)
+            self._show_meaning("Settings saved locally.", typed=True)
+            self._set_status("SETTINGS SAVED")
+
+        def reset_defaults():
+            defaults = self._default_settings()
+            for key, entry in fields.items():
+                entry.delete(0, "end")
+                entry.insert(0, defaults.get(key, ""))
+            set_output("Defaults restored in the form. Press Save to keep them.")
+            self._set_status("SETTINGS DEFAULTS")
+
+        def run_health_check():
+            set_output("Checking local paths and model state...")
+            self._set_status("HEALTH CHECK")
+            settings = self._clean_settings(settings_from_fields())
+
+            def work():
+                text = self._settings_health_text(settings)
+                self.after(0, lambda: set_output(text))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def rebuild_model():
+            settings = self._save_settings(settings_from_fields())
+            self._apply_settings(settings)
+            set_output("Rebuilding the local model. This may take a while if the base model is missing...")
+            self._set_status("MODEL REBUILDING")
+
+            def work():
+                text = self._rebuild_model_text(settings)
+                self.after(0, lambda: set_output(text))
+                self.after(0, lambda: self._set_status("MODEL READY" if "success" in text.lower() else "MODEL REBUILD CHECK"))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def open_data_folder():
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            if hasattr(os, "startfile"):
+                os.startfile(str(DATA_DIR))
+            self._set_status("DATA FOLDER")
+
+        buttons = tk.Frame(body, bg="#11100d")
+        buttons.pack(fill="x", pady=(12, 0))
+        self._modal_button(buttons, "Save", save_settings).pack(side="left")
+        self._modal_button(buttons, "Health Check", run_health_check).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Open Vault", self.open_vault_viewer).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Data Folder", open_data_folder).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Rebuild Model", rebuild_model, danger=True).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Reset Defaults", reset_defaults).pack(side="right")
+
+        set_output(
+            "Settings are local to this folder.\n\n"
+            "Press Save after changing paths or model name.\n"
+            "Press Health Check to verify Ollama, model storage, and the current model."
+        )
+        modal.focus_set()
+
+    def _modal_button(self, parent, text, command, danger=False):
+        return tk.Button(
+            parent,
+            text=text,
+            command=command,
+            bg="#3a211b" if danger else "#252119",
+            fg="#e0b9a8" if danger else "#d7c6a1",
+            activebackground="#4a2b23" if danger else "#322b20",
+            activeforeground="#f0d0c1" if danger else "#e6d7b8",
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=7,
+            font=self.font_status,
+            cursor="hand2",
+        )
+
+    def _settings_warning(self, settings):
+        model_dir = settings.get("ollama_models", "")
+        if re.match(r"^[cC]:\\", model_dir):
+            return "Warning: model storage is on C:. Use a larger drive for model files if possible."
+        if Path("D:/").exists() and not re.match(r"^[dD]:\\", model_dir):
+            return "D: exists, but model storage is not on D:."
+        return ""
+
+    def _settings_health_text(self, settings):
+        settings = self._clean_settings(settings)
+        ollama_exe = Path(settings["ollama_exe"]) if settings.get("ollama_exe") else None
+        model_dir = settings["ollama_models"]
+        model_name = settings["model_name"]
+        api = settings["ollama_api"]
+
+        lines = [
+            "SilentScabbard settings",
+            "",
+            f"App folder:       {BASE_DIR}",
+            f"Model name:       {model_name}",
+            f"Ollama exe:       {ollama_exe if ollama_exe else 'missing'}",
+            f"Model directory:  {model_dir}",
+            f"Ollama API:       {api}",
+            "",
+        ]
+
+        warning = self._settings_warning(settings)
+        if warning:
+            lines.extend([warning, ""])
+
+        api_ready = False
+        try:
+            with request.urlopen(f"{api}/api/version", timeout=2) as response:
+                api_ready = response.status == 200
+        except (OSError, error.URLError):
+            api_ready = False
+
+        lines.append(f"API ready:        {'yes' if api_ready else 'no'}")
+        lines.append(f"Ollama exe found: {'yes' if ollama_exe and ollama_exe.exists() else 'no'}")
+        lines.append(f"Model dir exists: {'yes' if Path(model_dir).exists() else 'no'}")
+
+        model_present = False
+        if ollama_exe and ollama_exe.exists():
+            env = os.environ.copy()
+            env["OLLAMA_MODELS"] = model_dir
+            try:
+                flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                result = subprocess.run(
+                    [str(ollama_exe), "list"],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                    creationflags=flags,
+                )
+                model_present = bool(re.search(rf"(?m)^{re.escape(model_name)}(?::latest)?\s", result.stdout))
+            except (OSError, subprocess.SubprocessError):
+                model_present = False
+
+        lines.append(f"Model present:    {'yes' if model_present else 'no'}")
+        lines.append(f"C model cache:    {self._directory_size_gb(Path.home() / '.ollama' / 'models')} GB")
+
+        for drive in ("C:/", "D:/"):
+            drive_path = Path(drive)
+            if drive_path.exists():
+                usage = shutil.disk_usage(drive_path)
+                lines.append(f"{drive_path.drive} free:          {round(usage.free / 1024 / 1024 / 1024, 2)} GB")
+
+        if model_present and api_ready:
+            lines.extend(["", "Health: ready."])
+        else:
+            lines.extend(["", "Health: needs setup or repair."])
+        return "\n".join(lines)
+
+    def _directory_size_gb(self, path):
+        if not path.exists():
+            return 0
+        total = 0
+        for file_path in path.rglob("*"):
+            if file_path.is_file():
+                try:
+                    total += file_path.stat().st_size
+                except OSError:
+                    pass
+        return round(total / 1024 / 1024 / 1024, 4)
+
+    def _rebuild_model_text(self, settings):
+        settings = self._clean_settings(settings)
+        ollama_exe = Path(settings["ollama_exe"]) if settings.get("ollama_exe") else None
+        if not ollama_exe or not ollama_exe.exists():
+            return "Cannot rebuild. Ollama executable was not found."
+
+        model_dir = Path(settings["ollama_models"])
+        model_dir.mkdir(parents=True, exist_ok=True)
+        env = os.environ.copy()
+        env["OLLAMA_MODELS"] = str(model_dir)
+
+        try:
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            result = subprocess.run(
+                [str(ollama_exe), "create", settings["model_name"], "-f", str(BASE_DIR / "Modelfile")],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=900,
+                creationflags=flags,
+            )
+        except Exception as exc:
+            return f"Model rebuild failed:\n{exc}"
+
+        output = "\n".join(part for part in [result.stdout.strip(), result.stderr.strip()] if part)
+        if result.returncode == 0:
+            return "Model rebuild success.\n\n" + (output or "Ollama completed without extra output.")
+        return f"Model rebuild failed with exit code {result.returncode}.\n\n{output}"
 
     def open_session_viewer(self):
         self._set_status("SESSION LOG OPEN")
@@ -1192,18 +1561,18 @@ class RoninApp(tk.Tk):
             self._set_status("LOCAL - OLLAMA CONNECTED")
             return
 
-        if not OLLAMA_EXE:
+        if not self.ollama_exe:
             self.ollama_ready = False
             self._set_status("OLLAMA NOT FOUND")
             return
 
         env = os.environ.copy()
-        env["OLLAMA_MODELS"] = OLLAMA_MODELS
+        env["OLLAMA_MODELS"] = self.ollama_models
 
         try:
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             subprocess.Popen(
-                [str(OLLAMA_EXE), "serve"],
+                [str(self.ollama_exe), "serve"],
                 env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -1226,7 +1595,7 @@ class RoninApp(tk.Tk):
 
     def _api_ready(self):
         try:
-            with request.urlopen(f"{OLLAMA_API}/api/version", timeout=2) as response:
+            with request.urlopen(f"{self.ollama_api}/api/version", timeout=2) as response:
                 return response.status == 200
         except (OSError, error.URLError):
             return False
@@ -1353,7 +1722,7 @@ class RoninApp(tk.Tk):
         messages.extend(self.messages[-16:])
 
         payload = {
-            "model": MODEL_NAME,
+            "model": self.model_name,
             "messages": messages,
             "stream": False,
             "options": {
@@ -1380,7 +1749,7 @@ class RoninApp(tk.Tk):
 
     def _ask_meaning(self):
         payload = {
-            "model": MODEL_NAME,
+            "model": self.model_name,
             "messages": [
                 {
                     "role": "system",
@@ -1401,7 +1770,7 @@ class RoninApp(tk.Tk):
         try:
             data = json.dumps(payload).encode("utf-8")
             req = request.Request(
-                f"{OLLAMA_API}/api/chat",
+                f"{self.ollama_api}/api/chat",
                 data=data,
                 headers={"Content-Type": "application/json"},
                 method="POST",
