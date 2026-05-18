@@ -1,0 +1,13 @@
+{
+  "width": 1668,
+  "height": 936,
+  "layers": [
+    {
+      "name": "full-skin-fallback",
+      "file": "ronin_skin.png",
+      "x": 0,
+      "y": 0,
+      "enabled": true
+    }
+  ]
+}

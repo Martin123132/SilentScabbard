@@ -45,7 +45,9 @@ def _resolve_ollama_models():
 
 
 BASE_DIR = Path(__file__).resolve().parent
-SKIN_IMAGE = BASE_DIR / "assets" / "ronin_skin.png"
+ASSETS_DIR = BASE_DIR / "assets"
+SKIN_IMAGE = ASSETS_DIR / "ronin_skin.png"
+SKIN_MANIFEST = ASSETS_DIR / "skin_manifest.json"
 DATA_DIR = BASE_DIR / "data"
 SESSIONS_DIR = DATA_DIR / "sessions"
 MEMORY_FILE = DATA_DIR / "memory.json"
@@ -279,14 +281,88 @@ class RoninApp(tk.Tk):
         self.font_status = tkfont.Font(family="Georgia", size=10)
 
     def _load_skin(self):
+        self.skin = None
+        self.skin_layers = []
+        self.skin_manifest = None
+
+        manifest = self._load_skin_manifest()
+        if manifest:
+            self.skin_manifest = manifest
+            self.window_width = manifest["width"]
+            self.window_height = manifest["height"]
+            self.skin_layers = self._load_skin_layers(manifest)
+            if self.skin_layers:
+                return
+
         if SKIN_IMAGE.exists():
             self.skin = tk.PhotoImage(file=str(SKIN_IMAGE))
             self.window_width = self.skin.width()
             self.window_height = self.skin.height()
         else:
-            self.skin = None
             self.window_width = 1200
             self.window_height = 760
+
+    def _load_skin_manifest(self):
+        if not SKIN_MANIFEST.exists():
+            return None
+        try:
+            raw = json.loads(SKIN_MANIFEST.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+        if not isinstance(raw, dict):
+            return None
+        layers = raw.get("layers", [])
+        if not isinstance(layers, list):
+            return None
+
+        width = self._safe_int(raw.get("width"), 1668)
+        height = self._safe_int(raw.get("height"), 936)
+        clean_layers = []
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+            file_name = str(layer.get("file", "")).strip()
+            if not file_name:
+                continue
+            clean_layers.append(
+                {
+                    "name": str(layer.get("name", file_name)).strip() or file_name,
+                    "file": file_name,
+                    "x": self._safe_int(layer.get("x"), 0),
+                    "y": self._safe_int(layer.get("y"), 0),
+                    "enabled": bool(layer.get("enabled", True)),
+                }
+            )
+
+        if not clean_layers:
+            return None
+        return {"width": width, "height": height, "layers": clean_layers}
+
+    def _safe_int(self, value, default):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _load_skin_layers(self, manifest):
+        layers = []
+        for layer in manifest["layers"]:
+            if not layer.get("enabled", True):
+                continue
+            image_path = (ASSETS_DIR / layer["file"]).resolve()
+            try:
+                image_path.relative_to(ASSETS_DIR.resolve())
+            except ValueError:
+                continue
+            if not image_path.exists():
+                continue
+            try:
+                image = tk.PhotoImage(file=str(image_path))
+            except tk.TclError:
+                continue
+            layers.append({"image": image, "x": layer["x"], "y": layer["y"], "name": layer["name"]})
+        return layers
 
     def _place_window(self):
         screen_w = self.winfo_screenwidth()
@@ -306,7 +382,10 @@ class RoninApp(tk.Tk):
         )
         self.canvas.pack(fill="both", expand=True)
 
-        if self.skin:
+        if self.skin_layers:
+            for layer in self.skin_layers:
+                self.canvas.create_image(layer["x"], layer["y"], image=layer["image"], anchor="nw")
+        elif self.skin:
             self.canvas.create_image(0, 0, image=self.skin, anchor="nw")
         else:
             self._draw_fallback_background()

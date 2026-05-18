@@ -89,6 +89,14 @@ Settings can edit:
 
 The Settings window can also run a health check, open the Vault, open the local data folder, and rebuild the local model from `Modelfile`.
 
+## Skin Assets
+
+The current app can load artwork from `assets\skin_manifest.json`.
+
+Right now the manifest draws the existing `assets\ronin_skin.png` as one full-window layer. Future art can be split into replaceable PNG layers such as room, samurai, and foreground without changing the Python UI code.
+
+See `assets\README.md` for the layer format.
+
 ## Memory
 
 Memory is explicit-only. Ronin remembers only when you tell it to.

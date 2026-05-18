@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Added optional layered skin loading through `assets\skin_manifest.json`.
+- Added `assets\README.md` with the artwork replacement workflow.
+- Kept `assets\ronin_skin.png` as the current full-window fallback layer.
+- Preserved plain fallback rendering if no usable skin assets are found.
+
 ## 0.2.0
 
 - Added a Settings window behind the gear button.
