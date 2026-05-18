@@ -44,7 +44,14 @@ try {
     Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/version' -TimeoutSec 2 | Out-Null
 } catch {
     Start-Process -FilePath $ollama -ArgumentList 'serve' -WindowStyle Hidden
-    Start-Sleep -Seconds 3
+    for ($i = 0; $i -lt 30; $i++) {
+        try {
+            Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/version' -TimeoutSec 2 | Out-Null
+            break
+        } catch {
+            Start-Sleep -Seconds 1
+        }
+    }
 }
 
 & $ollama run ronin

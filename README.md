@@ -20,6 +20,12 @@ The setup script:
 
 First setup may download the small `llama3.2:3b` base model through Ollama.
 
+To inspect the install without launching the app:
+
+```powershell
+.\health-check.ps1
+```
+
 ## Manual Run
 
 Open the desktop app:
@@ -52,6 +58,8 @@ Ollama settings can be overridden with:
 $env:RONIN_OLLAMA_EXE = 'D:\AI\Ollama\app\ollama.exe'
 $env:RONIN_OLLAMA_MODELS = 'D:\AI\Ollama\models'
 ```
+
+For a permanent local override, create `ronin.local.ps1`. This file is ignored by Git.
 
 ## Memory
 
