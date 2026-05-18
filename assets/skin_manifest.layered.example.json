@@ -1,0 +1,31 @@
+{
+  "width": 1668,
+  "height": 936,
+  "fallback_file": "ronin_skin.png",
+  "layers": [
+    {
+      "name": "room",
+      "file": "layers/room.png",
+      "x": 0,
+      "y": 0,
+      "enabled": true,
+      "required": true
+    },
+    {
+      "name": "samurai",
+      "file": "layers/samurai.png",
+      "x": 760,
+      "y": 82,
+      "enabled": true,
+      "required": false
+    },
+    {
+      "name": "foreground",
+      "file": "layers/foreground.png",
+      "x": 0,
+      "y": 0,
+      "enabled": true,
+      "required": true
+    }
+  ]
+}

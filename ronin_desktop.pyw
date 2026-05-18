@@ -294,8 +294,9 @@ class RoninApp(tk.Tk):
             if self.skin_layers:
                 return
 
-        if SKIN_IMAGE.exists():
-            self.skin = tk.PhotoImage(file=str(SKIN_IMAGE))
+        fallback_image = self._skin_fallback_path(manifest)
+        if fallback_image and fallback_image.exists():
+            self.skin = tk.PhotoImage(file=str(fallback_image))
             self.window_width = self.skin.width()
             self.window_height = self.skin.height()
         else:
@@ -318,6 +319,7 @@ class RoninApp(tk.Tk):
 
         width = self._safe_int(raw.get("width"), 1668)
         height = self._safe_int(raw.get("height"), 936)
+        fallback_file = str(raw.get("fallback_file", "ronin_skin.png")).strip() or "ronin_skin.png"
         clean_layers = []
         for layer in layers:
             if not isinstance(layer, dict):
@@ -332,12 +334,13 @@ class RoninApp(tk.Tk):
                     "x": self._safe_int(layer.get("x"), 0),
                     "y": self._safe_int(layer.get("y"), 0),
                     "enabled": bool(layer.get("enabled", True)),
+                    "required": bool(layer.get("required", True)),
                 }
             )
 
         if not clean_layers:
             return None
-        return {"width": width, "height": height, "layers": clean_layers}
+        return {"width": width, "height": height, "fallback_file": fallback_file, "layers": clean_layers}
 
     def _safe_int(self, value, default):
         try:
@@ -354,15 +357,32 @@ class RoninApp(tk.Tk):
             try:
                 image_path.relative_to(ASSETS_DIR.resolve())
             except ValueError:
+                if layer.get("required", True):
+                    return []
                 continue
             if not image_path.exists():
+                if layer.get("required", True):
+                    return []
                 continue
             try:
                 image = tk.PhotoImage(file=str(image_path))
             except tk.TclError:
+                if layer.get("required", True):
+                    return []
                 continue
             layers.append({"image": image, "x": layer["x"], "y": layer["y"], "name": layer["name"]})
         return layers
+
+    def _skin_fallback_path(self, manifest):
+        fallback_file = "ronin_skin.png"
+        if manifest:
+            fallback_file = manifest.get("fallback_file") or fallback_file
+        fallback_path = (ASSETS_DIR / fallback_file).resolve()
+        try:
+            fallback_path.relative_to(ASSETS_DIR.resolve())
+        except ValueError:
+            return SKIN_IMAGE
+        return fallback_path
 
     def _place_window(self):
         screen_w = self.winfo_screenwidth()

@@ -97,6 +97,18 @@ Right now the manifest draws the existing `assets\ronin_skin.png` as one full-wi
 
 See `assets\README.md` for the layer format.
 
+Useful skin commands:
+
+```powershell
+.\check-skin-assets.ps1
+.\set-skin-profile.ps1 -SkinProfile full
+.\set-skin-profile.ps1 -SkinProfile layered
+```
+
+For a double-click check, use `CHECK_SKIN_WINDOWS.bat`.
+
+For double-click profile switching, use `USE_FULL_SKIN_WINDOWS.bat` or `USE_LAYERED_SKIN_WINDOWS.bat`.
+
 ## Memory
 
 Memory is explicit-only. Ronin remembers only when you tell it to.

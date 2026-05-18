@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Added skin profile tooling for full and layered artwork modes.
+- Added `check-skin-assets.ps1` and `CHECK_SKIN_WINDOWS.bat`.
+- Added `set-skin-profile.ps1`, `USE_FULL_SKIN_WINDOWS.bat`, and `USE_LAYERED_SKIN_WINDOWS.bat`.
+- Added a layered manifest template and `assets\layers` drop-folder docs.
+- Added required-layer handling so incomplete layered skins fall back safely.
+
 ## 0.3.0
 
 - Added optional layered skin loading through `assets\skin_manifest.json`.
