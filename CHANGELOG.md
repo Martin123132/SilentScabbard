@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Added standalone Tkinter skin preview tooling.
+- Added `preview-skin.ps1` and `PREVIEW_SKIN_WINDOWS.bat`.
+- Preview supports active and alternate manifests without changing the live skin profile.
+- Preview shows canvas details, fallback status, ordered layer status, and missing required/optional assets.
+
 ## 0.4.0
 
 - Added skin profile tooling for full and layered artwork modes.

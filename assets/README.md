@@ -31,8 +31,18 @@ If required layer files are missing, the switch refuses and restores the full-sk
 Double-click helpers:
 
 - `CHECK_SKIN_WINDOWS.bat`
+- `PREVIEW_SKIN_WINDOWS.bat`
 - `USE_FULL_SKIN_WINDOWS.bat`
 - `USE_LAYERED_SKIN_WINDOWS.bat`
+
+Terminal preview commands:
+
+```powershell
+.\preview-skin.ps1
+.\preview-skin.ps1 -Manifest assets\skin_manifest.layered.example.json
+```
+
+Previewing the layered example is safe even before layer files exist. It reports missing required files and renders the fallback where possible without changing the active manifest.
 
 Example:
 
