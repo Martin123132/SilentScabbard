@@ -117,3 +117,4 @@ if ($errors.Count -gt 0) {
 }
 
 Write-Host 'Skin health: ready.' -ForegroundColor Green
+exit 0

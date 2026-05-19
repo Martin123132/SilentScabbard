@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Added layered skin import tooling for `room.png`, `foreground.png`, and optional `samurai.png`.
+- Added `import-layered-skin.ps1` and `IMPORT_LAYERED_SKIN_WINDOWS.bat`.
+- Import validates PNG files before changing installed layers.
+- Existing installed layer files are backed up to local runtime data before replacement.
+- Successful imports activate the layered profile and open the skin preview.
+- Skin check/profile scripts now return explicit exit codes for reliable automation.
+
 ## 0.5.0
 
 - Added standalone Tkinter skin preview tooling.

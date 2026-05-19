@@ -103,6 +103,7 @@ Useful skin commands:
 .\check-skin-assets.ps1
 .\preview-skin.ps1
 .\preview-skin.ps1 -Manifest assets\skin_manifest.layered.example.json
+.\import-layered-skin.ps1 -SourceFolder D:\Path\To\LayerPngs
 .\set-skin-profile.ps1 -SkinProfile full
 .\set-skin-profile.ps1 -SkinProfile layered
 ```
@@ -110,6 +111,8 @@ Useful skin commands:
 For a double-click check, use `CHECK_SKIN_WINDOWS.bat`.
 
 For a double-click preview, use `PREVIEW_SKIN_WINDOWS.bat`.
+
+For double-click import, use `IMPORT_LAYERED_SKIN_WINDOWS.bat` and choose a folder containing `room.png`, `foreground.png`, and optional `samurai.png`.
 
 For double-click profile switching, use `USE_FULL_SKIN_WINDOWS.bat` or `USE_LAYERED_SKIN_WINDOWS.bat`.
 

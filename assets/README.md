@@ -17,20 +17,27 @@ The active manifest currently draws `ronin_skin.png` as one layer. This keeps th
 
 To split the UI into replaceable pieces:
 
-1. Put the new files in `assets\layers`.
-2. Use the expected names from `assets\layers\README.md`, or edit `skin_manifest.layered.example.json`.
-3. Run `CHECK_SKIN_WINDOWS.bat`.
-4. Switch profiles with:
+1. Put `room.png`, `foreground.png`, and optional `samurai.png` in one source folder.
+2. Run the importer:
+
+```powershell
+.\import-layered-skin.ps1 -SourceFolder D:\Path\To\LayerPngs
+```
+
+The importer validates the PNGs, backs up replaced layer files to `data\skin_backups`, copies valid layers into `assets\layers`, activates the layered profile, and opens the preview.
+
+You can still switch profiles manually with:
 
 ```powershell
 .\set-skin-profile.ps1 -SkinProfile layered
 ```
 
-If required layer files are missing, the switch refuses and restores the full-skin profile.
+If required layer files are missing, the switch refuses and restores the full-skin profile. The importer does not resize artwork; `room.png` and `foreground.png` must be `1668 x 936`.
 
 Double-click helpers:
 
 - `CHECK_SKIN_WINDOWS.bat`
+- `IMPORT_LAYERED_SKIN_WINDOWS.bat`
 - `PREVIEW_SKIN_WINDOWS.bat`
 - `USE_FULL_SKIN_WINDOWS.bat`
 - `USE_LAYERED_SKIN_WINDOWS.bat`
