@@ -94,11 +94,72 @@ function Get-DirectorySizeGB {
     if (-not (Test-Path $Path)) {
         return 0
     }
-    $bytes = (Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-    if ($null -eq $bytes) {
-        $bytes = 0
+    $files = Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue
+    if (-not $files) {
+        return 0
     }
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
     return [math]::Round($bytes / 1GB, 4)
+}
+
+function Get-ShortcutStatus {
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $shortcutPath = Join-Path $desktop 'Ronin.lnk'
+    if (-not (Test-Path -LiteralPath $shortcutPath)) {
+        return [pscustomobject]@{
+            Ready = $false
+            Text = "missing ($shortcutPath)"
+        }
+    }
+
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $expectedTarget = [System.IO.Path]::GetFullPath((Join-Path $appDir 'launch-ronin.vbs'))
+        $actualTarget = [System.IO.Path]::GetFullPath($shortcut.TargetPath)
+        if ($actualTarget.Equals($expectedTarget, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return [pscustomobject]@{
+                Ready = $true
+                Text = "ready ($shortcutPath)"
+            }
+        }
+        return [pscustomobject]@{
+            Ready = $false
+            Text = "points elsewhere ($actualTarget)"
+        }
+    } catch {
+        return [pscustomobject]@{
+            Ready = $false
+            Text = "could not inspect ($shortcutPath)"
+        }
+    }
+}
+
+function Invoke-OllamaList {
+    param(
+        [string]$Ollama,
+        [string]$ModelDir,
+        [int]$TimeoutSeconds = 12
+    )
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $Ollama
+    $startInfo.Arguments = 'list'
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.EnvironmentVariables['OLLAMA_MODELS'] = $ModelDir
+
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        try {
+            $process.Kill()
+        } catch {}
+        return $null
+    }
+
+    return $process.StandardOutput.ReadToEnd()
 }
 
 $python = Find-Python
@@ -107,6 +168,11 @@ $ollama = Find-Ollama
 $modelDir = Resolve-ModelDir
 $modelName = Resolve-ModelName
 $cDefaultModels = Join-Path $env:USERPROFILE '.ollama\models'
+$settingsReady = Test-Path -LiteralPath (Join-Path $appDir 'data\settings.json')
+$localOverrideReady = Test-Path -LiteralPath $localConfig
+$shortcutStatus = Get-ShortcutStatus
+$cDrive = Get-PSDrive C -ErrorAction SilentlyContinue
+$dDrive = Get-PSDrive D -ErrorAction SilentlyContinue
 $apiReady = $false
 $roninModel = $false
 $ollamaVersion = 'not available'
@@ -117,15 +183,14 @@ try {
     $ollamaVersion = $version.version
 } catch {}
 
-if ($ollama) {
-    $oldModels = $env:OLLAMA_MODELS
-    $env:OLLAMA_MODELS = $modelDir
+if ($ollama -and $apiReady) {
     try {
-        $modelList = (& $ollama list 2>$null) -join "`n"
-        $modelPattern = "(?m)^$([regex]::Escape($modelName))(?::latest)?\s"
-        $roninModel = [bool]($modelList -match $modelPattern)
+        $modelList = Invoke-OllamaList -Ollama $ollama -ModelDir $modelDir
+        if ($null -ne $modelList) {
+            $modelPattern = "(?m)^$([regex]::Escape($modelName))(?::latest)?\s"
+            $roninModel = [bool]($modelList -match $modelPattern)
+        }
     } catch {}
-    $env:OLLAMA_MODELS = $oldModels
 }
 
 Write-Host ''
@@ -140,6 +205,9 @@ Write-Host "Ollama version:   $ollamaVersion"
 Write-Host "Model name:       $modelName"
 Write-Host "Model directory:  $modelDir"
 Write-Host "Model present:    $(if ($roninModel) { 'yes' } else { 'no' })"
+Write-Host "Settings file:    $(if ($settingsReady) { 'ready' } else { 'missing' })"
+Write-Host "Local override:   $(if ($localOverrideReady) { 'ready' } else { 'missing' })"
+Write-Host "Desktop shortcut: $($shortcutStatus.Text)"
 Write-Host "C model cache:    $(Get-DirectorySizeGB $cDefaultModels) GB ($cDefaultModels)"
 
 Get-PSDrive C,D -ErrorAction SilentlyContinue |
@@ -147,11 +215,27 @@ Get-PSDrive C,D -ErrorAction SilentlyContinue |
     Format-Table -AutoSize
 
 Write-Host 'Expected install file: START_HERE_WINDOWS.bat'
+Write-Host 'Expected repair file:  REPAIR_INSTALL_WINDOWS.bat'
 Write-Host 'Expected launch file:  launch-ronin.vbs'
 Write-Host ''
 
-if (-not $python -or -not $pythonw -or -not $ollama -or -not $roninModel) {
+if ($cDrive -and $cDrive.Free -lt 8GB) {
+    Write-Host "Warning: C: has only $([math]::Round($cDrive.Free / 1GB, 2)) GB free. Keep models on D: when possible." -ForegroundColor Yellow
+}
+if ($dDrive -and $dDrive.Free -lt 10GB) {
+    Write-Host "Warning: D: has only $([math]::Round($dDrive.Free / 1GB, 2)) GB free." -ForegroundColor Yellow
+}
+if ((Test-Path 'D:\') -and $modelDir -notlike 'D:\*') {
+    Write-Host "Warning: D: exists, but model directory is not on D: $modelDir" -ForegroundColor Yellow
+}
+if ($modelDir -like 'C:\Users\*\.ollama*') {
+    Write-Host "Warning: model directory points at the default C cache: $modelDir" -ForegroundColor Yellow
+}
+
+if (-not $python -or -not $pythonw -or -not $ollama -or -not $roninModel -or -not $settingsReady -or -not $localOverrideReady -or -not $shortcutStatus.Ready) {
     Write-Host 'Health: needs setup or repair.' -ForegroundColor Yellow
+    Write-Host 'Run REPAIR_INSTALL_WINDOWS.bat to refresh settings and the shortcut without deleting local data.' -ForegroundColor Yellow
+    Write-Host 'Run START_HERE_WINDOWS.bat if the local model is missing and needs to be created.' -ForegroundColor Yellow
     exit 1
 }
 

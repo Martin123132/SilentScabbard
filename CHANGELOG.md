@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Added `repair-windows.ps1` and `REPAIR_INSTALL_WINDOWS.bat` for one-click install repair.
+- Repair refreshes settings, local path overrides, model folder config, and the Desktop shortcut without deleting local data.
+- Repair starts the local Ollama service when needed so health checks can verify the model.
+- Health checks now report settings, local override, Desktop shortcut, low-drive-space, and risky C-cache path warnings.
+- Setup messaging now points users toward repair and makes the no-delete behavior clearer.
+
 ## 0.6.0
 
 - Added layered skin import tooling for `room.png`, `foreground.png`, and optional `samurai.png`.

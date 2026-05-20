@@ -2,6 +2,14 @@
 
 Run `CHECK_INSTALL_WINDOWS.bat` first. It prints the paths SilentScabbard is using and whether the local model is ready.
 
+## Quick Repair
+
+Double-click `REPAIR_INSTALL_WINDOWS.bat` if SilentScabbard was working before but settings, paths, or the Desktop shortcut look wrong.
+
+Repair refreshes `data\settings.json`, `ronin.local.ps1`, the `Ronin` Desktop shortcut, and health diagnostics. It does not delete memory, vault entries, session logs, skins, or model files.
+
+If the local model is missing, run `START_HERE_WINDOWS.bat` so setup can create it.
+
 ## Python Missing
 
 Install Python 3.11 or newer from:

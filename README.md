@@ -17,6 +17,7 @@ The setup script:
 - keeps model storage on `D:\AI\Ollama\models` when a D drive exists
 - creates the local `ronin` model from `Modelfile`
 - creates a Desktop shortcut named `Ronin`
+- does not delete local memory, vault, sessions, skins, or existing model files
 
 First setup may download the small `llama3.2:3b` base model through Ollama.
 
@@ -27,6 +28,8 @@ To inspect the install without launching the app:
 ```
 
 Or double-click `CHECK_INSTALL_WINDOWS.bat`.
+
+To repair settings, the Desktop shortcut, and local path config without rebuilding the model or deleting local data, double-click `REPAIR_INSTALL_WINDOWS.bat`.
 
 If something fails, see `TROUBLESHOOTING.md`.
 
