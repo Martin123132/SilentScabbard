@@ -746,7 +746,7 @@ class RoninApp(tk.Tk):
 
     def open_settings_viewer(self):
         self._set_status("SETTINGS OPEN")
-        modal, body = self._make_modal("Settings", width=920, height=650)
+        modal, body = self._make_modal("Settings", width=940, height=690)
 
         fields = {}
 
@@ -884,6 +884,7 @@ class RoninApp(tk.Tk):
         buttons.pack(fill="x", pady=(12, 0))
         self._modal_button(buttons, "Save", save_settings).pack(side="left")
         self._modal_button(buttons, "Health Check", run_health_check).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Skin Tools", self.open_skin_tools_viewer).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Open Vault", self.open_vault_viewer).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Data Folder", open_data_folder).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Rebuild Model", rebuild_model, danger=True).pack(side="left", padx=(10, 0))
@@ -912,6 +913,192 @@ class RoninApp(tk.Tk):
             font=self.font_status,
             cursor="hand2",
         )
+
+    def open_skin_tools_viewer(self):
+        self._set_status("SKIN TOOLS")
+        modal, body = self._make_modal("Skin Tools", width=940, height=620)
+
+        summary = tk.Label(
+            body,
+            text=self._skin_summary_text(),
+            bg="#11100d",
+            fg="#d4b978",
+            font=self.font_status,
+            justify="left",
+            anchor="w",
+        )
+        summary.pack(fill="x", pady=(0, 10))
+
+        output_frame = tk.Frame(body, bg="#11100d")
+        output_frame.pack(fill="both", expand=True)
+        output = tk.Text(
+            output_frame,
+            bg="#15130f",
+            fg="#e1d6c0",
+            insertbackground="#e1d6c0",
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=12,
+            wrap="word",
+            font=self.font_status,
+        )
+        output_scroll = tk.Scrollbar(output_frame, command=output.yview)
+        output.configure(yscrollcommand=output_scroll.set)
+        output.pack(side="left", fill="both", expand=True)
+        output_scroll.pack(side="right", fill="y")
+
+        def set_output(text):
+            output.configure(state="normal")
+            output.delete("1.0", "end")
+            output.insert("1.0", text)
+            output.configure(state="disabled")
+            summary.configure(text=self._skin_summary_text())
+
+        def run_skin_script(label, script_name, args=None, timeout=240):
+            set_output(f"{label}...")
+            self._set_status("SKIN WORKING")
+
+            def work():
+                text = self._run_powershell_helper(script_name, args=args or [], timeout=timeout)
+                text += "\n\nThe live window keeps its current artwork until Ronin is restarted. Use Preview Active to inspect the active skin now."
+                self.after(0, lambda: set_output(text))
+                self.after(0, lambda: self._set_status("SKIN TOOLS"))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def preview_active():
+            text = self._launch_powershell_helper("preview-skin.ps1")
+            set_output(text)
+            self._set_status("SKIN PREVIEW")
+
+        def import_layers():
+            folder = filedialog.askdirectory(parent=modal, title="Choose folder with room.png, foreground.png, and optional samurai.png")
+            if not folder:
+                set_output("Layer import cancelled.")
+                return
+            run_skin_script("Importing layered skin", "import-layered-skin.ps1", ["-SourceFolder", folder], timeout=300)
+
+        def open_layers_folder():
+            layers_dir = ASSETS_DIR / "layers"
+            layers_dir.mkdir(parents=True, exist_ok=True)
+            if hasattr(os, "startfile"):
+                os.startfile(str(layers_dir))
+            set_output(f"Opened layer folder:\n{layers_dir}")
+            self._set_status("LAYERS FOLDER")
+
+        buttons = tk.Frame(body, bg="#11100d")
+        buttons.pack(fill="x", pady=(12, 0))
+        self._modal_button(buttons, "Check Skin", lambda: run_skin_script("Checking skin", "check-skin-assets.ps1", timeout=90)).pack(side="left")
+        self._modal_button(buttons, "Preview Active", preview_active).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Import Layers", import_layers).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Use Full", lambda: run_skin_script("Switching to full skin", "set-skin-profile.ps1", ["-SkinProfile", "full"], timeout=90)).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Use Layered", lambda: run_skin_script("Switching to layered skin", "set-skin-profile.ps1", ["-SkinProfile", "layered"], timeout=90)).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Layers Folder", open_layers_folder).pack(side="right")
+
+        set_output(
+            "Skin tools use the same local scripts as the Windows helpers.\n\n"
+            "Import Layers expects room.png, foreground.png, and optional samurai.png.\n"
+            "Required layers must pass validation before the layered profile is activated."
+        )
+        modal.focus_set()
+
+    def _skin_summary_text(self):
+        lines = [
+            f"Manifest: {SKIN_MANIFEST}",
+            "Active skin: unknown",
+        ]
+        try:
+            raw = json.loads(SKIN_MANIFEST.read_text(encoding="utf-8"))
+            layers = raw.get("layers", []) if isinstance(raw, dict) else []
+        except (OSError, json.JSONDecodeError):
+            lines.append("Manifest could not be read.")
+            return "\n".join(lines)
+
+        if len(layers) == 1 and layers[0].get("file") == "ronin_skin.png":
+            lines[1] = "Active skin: full"
+        elif layers:
+            lines[1] = "Active skin: layered"
+
+        ok_count = 0
+        missing = []
+        for layer in layers:
+            if not isinstance(layer, dict) or not layer.get("enabled", True):
+                continue
+            file_name = str(layer.get("file", "")).strip()
+            if not file_name:
+                continue
+            path = (ASSETS_DIR / file_name).resolve()
+            exists = False
+            try:
+                path.relative_to(ASSETS_DIR.resolve())
+                exists = path.exists()
+            except ValueError:
+                exists = False
+            if exists:
+                ok_count += 1
+            elif layer.get("required", True):
+                missing.append(file_name)
+
+        lines.append(f"Ready layers: {ok_count}")
+        if missing:
+            lines.append("Missing required: " + ", ".join(missing))
+        else:
+            lines.append("Missing required: none")
+        return "\n".join(lines)
+
+    def _run_powershell_helper(self, script_name, args=None, timeout=180):
+        script_path = BASE_DIR / script_name
+        if not script_path.exists():
+            return f"Helper script missing:\n{script_path}"
+
+        command = [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script_path),
+        ]
+        command.extend(args or [])
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            result = subprocess.run(
+                command,
+                cwd=str(BASE_DIR),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                creationflags=flags,
+            )
+        except Exception as exc:
+            return f"{script_name} failed to run:\n{exc}"
+
+        output = "\n".join(part for part in [result.stdout.strip(), result.stderr.strip()] if part)
+        if not output:
+            output = "Helper completed without output."
+        return f"{script_name}\nExit code: {result.returncode}\n\n{output}"
+
+    def _launch_powershell_helper(self, script_name, args=None):
+        script_path = BASE_DIR / script_name
+        if not script_path.exists():
+            return f"Helper script missing:\n{script_path}"
+
+        command = [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script_path),
+        ]
+        command.extend(args or [])
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            subprocess.Popen(command, cwd=str(BASE_DIR), creationflags=flags)
+        except Exception as exc:
+            return f"{script_name} failed to launch:\n{exc}"
+        return f"Launched {script_name}."
 
     def _settings_warning(self, settings):
         model_dir = settings.get("ollama_models", "")
@@ -1987,7 +2174,10 @@ class RoninApp(tk.Tk):
             self.status_dots = 0
             self.canvas.itemconfigure(self.status_item, text=text)
 
-        self.after(0, update)
+        try:
+            self.after(0, update)
+        except RuntimeError:
+            pass
 
 
 if __name__ == "__main__":

@@ -90,7 +90,7 @@ Settings can edit:
 - model name
 - local Ollama API URL
 
-The Settings window can also run a health check, open the Vault, open the local data folder, and rebuild the local model from `Modelfile`.
+The Settings window can also run a health check, open Skin Tools, open the Vault, open the local data folder, and rebuild the local model from `Modelfile`.
 
 ## Skin Assets
 
@@ -118,6 +118,8 @@ For a double-click preview, use `PREVIEW_SKIN_WINDOWS.bat`.
 For double-click import, use `IMPORT_LAYERED_SKIN_WINDOWS.bat` and choose a folder containing `room.png`, `foreground.png`, and optional `samurai.png`.
 
 For double-click profile switching, use `USE_FULL_SKIN_WINDOWS.bat` or `USE_LAYERED_SKIN_WINDOWS.bat`.
+
+Inside Ronin, open Settings and click `Skin Tools` to check the active skin, preview it, import layered artwork, switch profiles, or open the layer folder.
 
 ## Memory
 

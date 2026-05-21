@@ -42,6 +42,10 @@ Double-click helpers:
 - `USE_FULL_SKIN_WINDOWS.bat`
 - `USE_LAYERED_SKIN_WINDOWS.bat`
 
+In-app helper:
+
+- Settings -> Skin Tools
+
 Terminal preview commands:
 
 ```powershell

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- Added in-app Skin Tools from Settings.
+- Skin Tools can check the active skin, launch preview, import layered artwork, switch full/layered profiles, and open the layer folder.
+- Skin actions reuse the existing Windows helper scripts so command-line and in-app behavior stay aligned.
+
 ## 0.7.0
 
 - Added `repair-windows.ps1` and `REPAIR_INSTALL_WINDOWS.bat` for one-click install repair.
