@@ -89,6 +89,7 @@ Settings can edit:
 - model storage path
 - model name
 - local Ollama API URL
+- character-surface layout toggle (Surface mode: on by default)
 
 The Settings window can also run a health check, open Skin Tools, open the Vault, open the local data folder, and rebuild the local model from `Modelfile`.
 

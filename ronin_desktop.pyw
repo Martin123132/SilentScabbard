@@ -95,7 +95,8 @@ class RoninApp(tk.Tk):
         self.meaning_full_text = ""
         self.quote_index = 0
         self.meaning_index = 0
-        self.riddle_mode = True
+        self.stoic_riddle = True
+        self.samurai_surface_enabled = True
         self.whisper_mode = False
         self.memory_enabled = True
         self.memory = []
@@ -139,6 +140,7 @@ class RoninApp(tk.Tk):
             "ollama_exe": str(DEFAULT_OLLAMA_EXE) if DEFAULT_OLLAMA_EXE else "",
             "ollama_models": DEFAULT_OLLAMA_MODELS,
             "ollama_api": DEFAULT_OLLAMA_API,
+            "samurai_surface_enabled": True,
         }
 
     def _current_settings(self):
@@ -147,6 +149,7 @@ class RoninApp(tk.Tk):
             "ollama_exe": str(self.ollama_exe) if self.ollama_exe else "",
             "ollama_models": self.ollama_models,
             "ollama_api": self.ollama_api,
+            "samurai_surface_enabled": self.samurai_surface_enabled,
         }
 
     def _load_settings(self):
@@ -157,8 +160,16 @@ class RoninApp(tk.Tk):
             raw = {}
 
         if isinstance(raw, dict):
-            for key in settings:
+            for key, default in settings.items():
                 value = raw.get(key)
+                if isinstance(default, bool):
+                    if isinstance(value, bool):
+                        settings[key] = value
+                    elif isinstance(value, str):
+                        settings[key] = value.strip().lower() in {"1", "true", "yes", "on"}
+                    elif isinstance(value, (int, float)):
+                        settings[key] = bool(value)
+                    continue
                 if isinstance(value, str) and value.strip():
                     settings[key] = value.strip()
         return settings
@@ -177,6 +188,10 @@ class RoninApp(tk.Tk):
         clean = {}
         for key, default in defaults.items():
             value = settings.get(key, default) if isinstance(settings, dict) else default
+            if isinstance(default, bool):
+                settings_bool = bool(value) if isinstance(value, bool) else str(value).strip().lower() in {"1", "true", "yes", "on"}
+                clean[key] = bool(settings_bool)
+                continue
             value = str(value).strip() if value is not None else ""
             clean[key] = value or default
         clean["ollama_api"] = clean["ollama_api"].rstrip("/")
@@ -190,6 +205,8 @@ class RoninApp(tk.Tk):
         self.ollama_exe = Path(clean["ollama_exe"]) if clean["ollama_exe"] else None
         self.ollama_models = clean["ollama_models"]
         self.ollama_api = clean["ollama_api"]
+        self.stoic_riddle = clean.get("stoic_riddle", True) if "stoic_riddle" in clean else True
+        self.samurai_surface_enabled = clean.get("samurai_surface_enabled", True)
         os.environ["OLLAMA_MODELS"] = self.ollama_models
         os.environ["RONIN_MODEL_NAME"] = self.model_name
         if self.ollama_exe:
@@ -286,22 +303,39 @@ class RoninApp(tk.Tk):
         self.skin_manifest = None
 
         manifest = self._load_skin_manifest()
-        if manifest:
-            self.skin_manifest = manifest
-            self.window_width = manifest["width"]
-            self.window_height = manifest["height"]
-            self.skin_layers = self._load_skin_layers(manifest)
-            if self.skin_layers:
-                return
+        if self.samurai_surface_enabled:
+            if manifest:
+                self.skin_manifest = manifest
+                self.window_width = manifest["width"]
+                self.window_height = manifest["height"]
+                self.skin_layers = self._load_skin_layers(manifest)
+                if self.skin_layers:
+                    return
+
+            fallback_image = self._skin_fallback_path(manifest)
+            if fallback_image and fallback_image.exists():
+                self.skin = tk.PhotoImage(file=str(fallback_image))
+                self.window_width = self.skin.width()
+                self.window_height = self.skin.height()
+            else:
+                self.window_width = 1668
+                self.window_height = 936
+            return
+
+        if not manifest:
+            self.window_width = 1668
+            self.window_height = 936
+            return
+
+        self.window_width = manifest["width"]
+        self.window_height = manifest["height"]
 
         fallback_image = self._skin_fallback_path(manifest)
         if fallback_image and fallback_image.exists():
             self.skin = tk.PhotoImage(file=str(fallback_image))
-            self.window_width = self.skin.width()
-            self.window_height = self.skin.height()
         else:
-            self.window_width = 1200
-            self.window_height = 760
+            self.window_width = 1668
+            self.window_height = 936
 
     def _load_skin_manifest(self):
         if not SKIN_MANIFEST.exists():
@@ -653,7 +687,7 @@ class RoninApp(tk.Tk):
             return
 
         if target == "riddle":
-            self.riddle_mode = True
+            self.stoic_riddle = True
             self.canvas.itemconfigure(self.riddle_select, state="normal")
             self._set_status("RIDDLE MODE")
             self.entry.focus_set()
@@ -749,6 +783,7 @@ class RoninApp(tk.Tk):
         modal, body = self._make_modal("Settings", width=940, height=690)
 
         fields = {}
+        toggles = {}
 
         def add_field(label_text, key, browse_kind=None):
             row = tk.Frame(body, bg="#11100d")
@@ -796,6 +831,36 @@ class RoninApp(tk.Tk):
         add_field("Model storage", "ollama_models", "directory")
         add_field("Ollama API", "ollama_api")
 
+        def add_toggle(label_text, key, note):
+            row = tk.Frame(body, bg="#11100d")
+            row.pack(fill="x", pady=(0, 12))
+            tk.Label(
+                row,
+                text=label_text,
+                bg="#11100d",
+                fg="#d4b978",
+                font=self.font_status,
+                anchor="w",
+                width=18,
+            ).pack(side="left")
+            value = bool(self._current_settings().get(key, False))
+            var = tk.BooleanVar(value=value)
+            cb = tk.Checkbutton(
+                row,
+                text=note,
+                variable=var,
+                bg="#11100d",
+                fg="#e1d6c0",
+                activebackground="#11100d",
+                activeforeground="#e1d6c0",
+                selectcolor="#15130f",
+                font=self.font_meaning,
+            )
+            cb.pack(side="left", padx=(8, 0))
+            toggles[key] = var
+
+        add_toggle("Surface layout", "samurai_surface_enabled", "Show character surface at startup")
+
         output_frame = tk.Frame(body, bg="#11100d")
         output_frame.pack(fill="both", expand=True, pady=(8, 0))
         output = tk.Text(
@@ -828,13 +893,18 @@ class RoninApp(tk.Tk):
                 "ollama_exe": fields["ollama_exe"].get().strip(),
                 "ollama_models": fields["ollama_models"].get().strip(),
                 "ollama_api": fields["ollama_api"].get().strip(),
+                "samurai_surface_enabled": toggles["samurai_surface_enabled"].get(),
             }
 
         def save_settings():
+            previous_surface = self.samurai_surface_enabled
             settings = self._save_settings(settings_from_fields())
             self._apply_settings(settings)
             self._append_session_event("system", "Settings saved.")
             warning = self._settings_warning(settings)
+            if previous_surface != self.samurai_surface_enabled:
+                warning = (warning + "\n\n") if warning else ""
+                warning += "Surface mode changed. Restart Ronin to apply the layout change."
             message = "Settings saved to data/settings.json and ronin.local.ps1."
             if warning:
                 message += "\n\n" + warning
@@ -847,6 +917,8 @@ class RoninApp(tk.Tk):
             for key, entry in fields.items():
                 entry.delete(0, "end")
                 entry.insert(0, defaults.get(key, ""))
+            for key, var in toggles.items():
+                var.set(defaults.get(key, False))
             set_output("Defaults restored in the form. Press Save to keep them.")
             self._set_status("SETTINGS DEFAULTS")
 

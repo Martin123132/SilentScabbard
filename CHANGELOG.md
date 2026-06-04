@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+
+- Added a character-surface mode flag in local settings so users can disable the visual skin layout when needed.
+- Added safer startup behavior: when character surface mode is off or required layers are missing, Ronin uses a neutral fallback canvas and still loads normally.
+- Added Settings toggle UI for `samurai_surface_enabled` with persisted value in `data/settings.json`.
+
 ## 0.8.0
 
 - Added in-app Skin Tools from Settings.
