@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 import shutil
 import subprocess
 import threading
@@ -95,7 +96,7 @@ class RoninApp(tk.Tk):
         self.meaning_full_text = ""
         self.quote_index = 0
         self.meaning_index = 0
-        self.stoic_riddle = True
+        self.stoic_riddle = False
         self.samurai_surface_enabled = True
         self.whisper_mode = False
         self.memory_enabled = True
@@ -207,13 +208,14 @@ class RoninApp(tk.Tk):
         self.ollama_exe = Path(clean["ollama_exe"]) if clean["ollama_exe"] else None
         self.ollama_models = clean["ollama_models"]
         self.ollama_api = clean["ollama_api"]
-        self.stoic_riddle = clean.get("stoic_riddle", True)
+        self.stoic_riddle = clean.get("stoic_riddle", False)
         self.samurai_surface_enabled = clean.get("samurai_surface_enabled", True)
         os.environ["OLLAMA_MODELS"] = self.ollama_models
         os.environ["RONIN_MODEL_NAME"] = self.model_name
         if self.ollama_exe:
             os.environ["RONIN_OLLAMA_EXE"] = str(self.ollama_exe)
         os.environ["RONIN_OLLAMA_MODELS"] = self.ollama_models
+        self._update_mode_banner()
 
     def _write_local_override(self, settings):
         config_file = BASE_DIR / "ronin.local.ps1"
@@ -501,6 +503,15 @@ class RoninApp(tk.Tk):
         self.quote_item = None
         self.meaning_patch = None
         self.meaning_item = None
+        self.mode_patch = self.canvas.create_rectangle(56, 78, 411, 117, fill="#120f0b", outline="#5a4d34")
+        self.mode_item = self.canvas.create_text(
+            233,
+            97,
+            text=self._mode_banner_text(),
+            fill="#d2c3a0",
+            font=self.font_status,
+            anchor="center",
+        )
         self.status_patch = self.canvas.create_rectangle(698, 31, 996, 60, fill="#090907", outline="")
         self.status_dot = self.canvas.create_oval(709, 40, 719, 50, fill="#53bd76", outline="")
         self.status_item = self.canvas.create_text(
@@ -511,6 +522,7 @@ class RoninApp(tk.Tk):
             font=self.font_status,
             anchor="center",
         )
+        self._update_mode_banner()
 
     def _create_input(self):
         self.entry = tk.Text(
@@ -693,6 +705,7 @@ class RoninApp(tk.Tk):
             self.canvas.itemconfigure(self.riddle_select, state="normal" if self.stoic_riddle else "hidden")
             mode = "RIDDLE" if self.stoic_riddle else "PLAIN"
             self._set_status(f"{mode} MODE")
+            self._update_mode_banner()
             self.entry.focus_set()
             return
 
@@ -759,6 +772,49 @@ class RoninApp(tk.Tk):
         x = self.winfo_x() + max((self.window_width - width) // 2, 0)
         y = self.winfo_y() + max((self.window_height - height) // 2, 0)
         return f"{width}x{height}+{x}+{y}"
+
+    def _mode_banner_text(self):
+        surface_mode = "ON" if self.samurai_surface_enabled else "OFF"
+        persona_mode = "RIDDLE" if self.stoic_riddle else "PLAIN"
+        return f"SAMURAI SURFACE: {surface_mode}    PERSONA: {persona_mode}"
+
+    def _update_mode_banner(self):
+        if not hasattr(self, "mode_item"):
+            return
+        try:
+            self.canvas.itemconfigure(self.mode_item, text=self._mode_banner_text())
+        except (RuntimeError, tk.TclError):
+            pass
+
+    def _restart_application(self, close_modal=None):
+        self._append_session_event("system", "User requested restart from settings.")
+        self._set_status("RESTARTING")
+
+        if close_modal is not None:
+            try:
+                close_modal.destroy()
+            except tk.TclError:
+                pass
+
+        python_exe = sys.executable
+        script = str(Path(__file__).resolve())
+        kwargs = {"cwd": str(BASE_DIR)}
+        flags = 0
+        if hasattr(subprocess, "DETACHED_PROCESS"):
+            flags |= subprocess.DETACHED_PROCESS
+        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+            flags |= subprocess.CREATE_NEW_PROCESS_GROUP
+        if flags:
+            kwargs["creationflags"] = flags
+
+        try:
+            subprocess.Popen([python_exe, script], **kwargs)
+        except Exception as exc:
+            self._show_meaning(f"Restart launch failed: {exc}", typed=True)
+            self._set_status("RESTART FAILED")
+            return
+
+        self.after(120, self.destroy)
 
     def _make_text_view(self, parent, text):
         view = tk.Text(
@@ -905,11 +961,18 @@ class RoninApp(tk.Tk):
             previous_surface = self.samurai_surface_enabled
             settings = self._save_settings(settings_from_fields())
             self._apply_settings(settings)
+            self._update_mode_banner()
             self._append_session_event("system", "Settings saved.")
             warning = self._settings_warning(settings)
-            if previous_surface != self.samurai_surface_enabled:
+            restart_needed = previous_surface != self.samurai_surface_enabled
+            if restart_needed:
                 warning = (warning + "\n\n") if warning else ""
-                warning += "Surface mode changed. Restart Ronin to apply the layout change."
+                warning += "Surface mode changed. Restart Ronin to apply the layout change.\nPress Restart App to apply the new layout."
+                if restart_button and not restart_button.winfo_ismapped():
+                    restart_button.pack(side="left", padx=(10, 0))
+            else:
+                if restart_button and restart_button.winfo_ismapped():
+                    restart_button.pack_forget()
             message = "Settings saved to data/settings.json and ronin.local.ps1."
             if warning:
                 message += "\n\n" + warning
@@ -965,6 +1028,8 @@ class RoninApp(tk.Tk):
         self._modal_button(buttons, "Open Vault", self.open_vault_viewer).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Data Folder", open_data_folder).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Rebuild Model", rebuild_model, danger=True).pack(side="left", padx=(10, 0))
+        restart_button = self._modal_button(buttons, "Restart App", lambda: self._restart_application(modal))
+        restart_button.pack_forget()
         self._modal_button(buttons, "Reset Defaults", reset_defaults).pack(side="right")
 
         set_output(

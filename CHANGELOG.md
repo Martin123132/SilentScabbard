@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2
+
+- Added a startup mode banner showing Surface and Persona mode state on the app canvas.
+- Added a Settings-only `Restart App` action to relaunch Ronin after `samurai_surface_enabled` changes.
+- Updated mode state handling so toggles and settings saves immediately reflect in the mode banner.
+
 ## 0.9.1
 
 - Added a local `stoic_riddle` setting in Settings to toggle stoic riddle responses at runtime.
