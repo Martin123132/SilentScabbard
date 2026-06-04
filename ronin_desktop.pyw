@@ -141,6 +141,7 @@ class RoninApp(tk.Tk):
             "ollama_models": DEFAULT_OLLAMA_MODELS,
             "ollama_api": DEFAULT_OLLAMA_API,
             "samurai_surface_enabled": True,
+            "stoic_riddle": False,
         }
 
     def _current_settings(self):
@@ -150,6 +151,7 @@ class RoninApp(tk.Tk):
             "ollama_models": self.ollama_models,
             "ollama_api": self.ollama_api,
             "samurai_surface_enabled": self.samurai_surface_enabled,
+            "stoic_riddle": self.stoic_riddle,
         }
 
     def _load_settings(self):
@@ -205,7 +207,7 @@ class RoninApp(tk.Tk):
         self.ollama_exe = Path(clean["ollama_exe"]) if clean["ollama_exe"] else None
         self.ollama_models = clean["ollama_models"]
         self.ollama_api = clean["ollama_api"]
-        self.stoic_riddle = clean.get("stoic_riddle", True) if "stoic_riddle" in clean else True
+        self.stoic_riddle = clean.get("stoic_riddle", True)
         self.samurai_surface_enabled = clean.get("samurai_surface_enabled", True)
         os.environ["OLLAMA_MODELS"] = self.ollama_models
         os.environ["RONIN_MODEL_NAME"] = self.model_name
@@ -687,9 +689,10 @@ class RoninApp(tk.Tk):
             return
 
         if target == "riddle":
-            self.stoic_riddle = True
-            self.canvas.itemconfigure(self.riddle_select, state="normal")
-            self._set_status("RIDDLE MODE")
+            self.stoic_riddle = not self.stoic_riddle
+            self.canvas.itemconfigure(self.riddle_select, state="normal" if self.stoic_riddle else "hidden")
+            mode = "RIDDLE" if self.stoic_riddle else "PLAIN"
+            self._set_status(f"{mode} MODE")
             self.entry.focus_set()
             return
 
@@ -860,6 +863,7 @@ class RoninApp(tk.Tk):
             toggles[key] = var
 
         add_toggle("Surface layout", "samurai_surface_enabled", "Show character surface at startup")
+        add_toggle("Stoic riddle", "stoic_riddle", "Use restrained riddle responses")
 
         output_frame = tk.Frame(body, bg="#11100d")
         output_frame.pack(fill="both", expand=True, pady=(8, 0))
@@ -894,6 +898,7 @@ class RoninApp(tk.Tk):
                 "ollama_models": fields["ollama_models"].get().strip(),
                 "ollama_api": fields["ollama_api"].get().strip(),
                 "samurai_surface_enabled": toggles["samurai_surface_enabled"].get(),
+                "stoic_riddle": toggles["stoic_riddle"].get(),
             }
 
         def save_settings():
@@ -2064,12 +2069,18 @@ class RoninApp(tk.Tk):
         thread.start()
 
     def _ask_ronin(self):
-        mode_prompt = (
-            "You are Kage inside a local desktop app. Reply in plain English. "
-            "Give useful counsel through restrained riddle language. "
-            "Use one to three short lines unless the user clearly asks for detail. "
-            "Do not explain the riddle unless asked."
-        )
+        if self.stoic_riddle:
+            mode_prompt = (
+                "You are Kage inside a local desktop app. Reply in plain English. "
+                "Give useful counsel through restrained riddle language. "
+                "Use one to three short lines unless the user clearly asks for detail. "
+                "Do not explain the riddle unless asked."
+            )
+        else:
+            mode_prompt = (
+                "You are Kage inside a local desktop app. Reply in plain, direct English. "
+                "Answer in short practical paragraphs. Prefer concrete steps when useful."
+            )
         if self.whisper_mode:
             mode_prompt += " Whisper mode is on: answer in one quiet line."
 
@@ -2098,7 +2109,8 @@ class RoninApp(tk.Tk):
         if self.is_waiting:
             return
         if not self.last_answer:
-            self._show_meaning("Ask first. Meaning follows the riddle.")
+            guidance = "Meaning follows the riddle." if self.stoic_riddle else "Meaning follows the answer."
+            self._show_meaning(f"Ask first. {guidance}")
             return
 
         self._set_waiting(True, "MEANING UNFOLDS")
@@ -2106,13 +2118,14 @@ class RoninApp(tk.Tk):
         thread.start()
 
     def _ask_meaning(self):
+        if self.stoic_riddle:
+            system_prompt = "Explain the previous riddle plainly in one short practical sentence. Use no samurai voice."
+        else:
+            system_prompt = "Explain the previous answer in one short practical sentence. Be direct and concrete."
         payload = {
             "model": self.model_name,
             "messages": [
-                {
-                    "role": "system",
-                    "content": "Explain the previous riddle plainly in one short practical sentence. Use no samurai voice.",
-                },
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": self.last_answer},
             ],
             "stream": False,
@@ -2240,11 +2253,21 @@ class RoninApp(tk.Tk):
         if not waiting:
             self.entry.focus_set()
 
+    def _status_with_mode(self, text):
+        mode = "RIDDLE MODE" if self.stoic_riddle else "PLAIN MODE"
+        if not isinstance(text, str):
+            return text
+        upper_text = text.upper()
+        if mode in upper_text:
+            return text
+        return f"{text} ({mode})"
+
     def _set_status(self, text):
         def update():
-            self.status_base = text
+            status_text = self._status_with_mode(text)
+            self.status_base = status_text
             self.status_dots = 0
-            self.canvas.itemconfigure(self.status_item, text=text)
+            self.canvas.itemconfigure(self.status_item, text=status_text)
 
         try:
             self.after(0, update)

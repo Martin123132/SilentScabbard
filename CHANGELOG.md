@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+- Added a local `stoic_riddle` setting in Settings to toggle stoic riddle responses at runtime.
+- Wired the runtime prompt mode to honor `stoic_riddle` and added a status-mode indicator for plain/stoic reply style.
+- Added status-line and explain-meaning phrasing that adapts when plain mode is active.
+
 ## 0.9.0
 
 - Added a character-surface mode flag in local settings so users can disable the visual skin layout when needed.

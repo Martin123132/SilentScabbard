@@ -90,6 +90,7 @@ Settings can edit:
 - model name
 - local Ollama API URL
 - character-surface layout toggle (Surface mode: on by default)
+- Stoic Riddle mode toggle (default off in 0.9.1)
 
 The Settings window can also run a health check, open Skin Tools, open the Vault, open the local data folder, and rebuild the local model from `Modelfile`.
 
