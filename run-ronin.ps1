@@ -24,7 +24,7 @@ function Find-Ollama {
         return $cmd.Source
     }
 
-    throw 'Ollama was not found. Install Ollama or set RONIN_OLLAMA_EXE.'
+    return $null
 }
 
 if (-not $env:OLLAMA_MODELS) {
@@ -40,6 +40,12 @@ if (-not $env:OLLAMA_MODELS) {
 New-Item -ItemType Directory -Force -Path $env:OLLAMA_MODELS | Out-Null
 $ollama = Find-Ollama
 $modelName = if ($env:RONIN_MODEL_NAME) { $env:RONIN_MODEL_NAME } else { 'ronin' }
+
+if (-not $ollama) {
+    Write-Host 'Ollama was not found. Install Ollama first: https://ollama.com/download/windows/' -ForegroundColor Red
+    Write-Host 'Tip: run REPAIR_INSTALL_WINDOWS.bat after installing Ollama to refresh launch settings.' -ForegroundColor Gray
+    exit 1
+}
 
 try {
     Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/version' -TimeoutSec 2 | Out-Null

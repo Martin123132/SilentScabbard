@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.5
+
+- Improved launch scripts with clearer dependency/preflight checks before startup.
+- `launch-ronin.ps1` now reports missing Python/Ollama and clearly warns when model cache is off D or on default C path.
+- `run-ronin.ps1` now exits with explicit install guidance if Ollama is missing.
+
 ## 0.9.4
 
 - Added color-coded mode banner styling tied to Ollama readiness state (ready/starting/no-exe/failed).

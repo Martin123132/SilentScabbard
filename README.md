@@ -18,6 +18,7 @@ The setup script:
 - creates the local `ronin` model from `Modelfile`
 - creates a Desktop shortcut named `Ronin`
 - does not delete local memory, vault, sessions, skins, or existing model files
+- provides dependency-check messaging on launch for missing Python/Ollama before the app starts
 
 First setup may download the small `llama3.2:3b` base model through Ollama.
 
