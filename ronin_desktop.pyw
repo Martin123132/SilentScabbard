@@ -88,6 +88,7 @@ class RoninApp(tk.Tk):
         self.hover_target = None
         self.status_base = "LOCAL - WAKING OLLAMA"
         self.status_dots = 0
+        self.ollama_banner_state = "WAKING"
         self.lantern_step = 0
         self.ollama_ready = False
         self.typing_job = None
@@ -503,14 +504,16 @@ class RoninApp(tk.Tk):
         self.quote_item = None
         self.meaning_patch = None
         self.meaning_item = None
-        self.mode_patch = self.canvas.create_rectangle(56, 78, 411, 117, fill="#120f0b", outline="#5a4d34")
+        self.mode_patch = self.canvas.create_rectangle(56, 72, 700, 122, fill="#120f0b", outline="#5a4d34")
         self.mode_item = self.canvas.create_text(
-            233,
-            97,
+            68,
+            74,
             text=self._mode_banner_text(),
             fill="#d2c3a0",
             font=self.font_status,
-            anchor="center",
+            anchor="nw",
+            width=620,
+            justify="left",
         )
         self.status_patch = self.canvas.create_rectangle(698, 31, 996, 60, fill="#090907", outline="")
         self.status_dot = self.canvas.create_oval(709, 40, 719, 50, fill="#53bd76", outline="")
@@ -776,7 +779,36 @@ class RoninApp(tk.Tk):
     def _mode_banner_text(self):
         surface_mode = "ON" if self.samurai_surface_enabled else "OFF"
         persona_mode = "RIDDLE" if self.stoic_riddle else "PLAIN"
-        return f"SAMURAI SURFACE: {surface_mode}    PERSONA: {persona_mode}"
+        ollama_state = self._ollama_banner_state_text()
+        model_drive = self._model_drive_label()
+        return (
+            f"SAMURAI SURFACE: {surface_mode}    "
+            f"PERSONA: {persona_mode}    "
+            f"OLLAMA: {ollama_state} ({model_drive})"
+        )
+
+    def _ollama_banner_state_text(self):
+        if self.ollama_banner_state == "READY":
+            return "READY"
+        if self.ollama_banner_state in {"WAKING", "STARTING"}:
+            return "STARTING"
+        if self.ollama_banner_state in {"NO_EXE", "MISSING_EXE", "EXE_MISSING"}:
+            return "NO EXE"
+        if self.ollama_banner_state == "FAILED":
+            return "FAILED"
+        return "UNSET"
+
+    def _model_drive_label(self):
+        models_dir = self.ollama_models.strip()
+        if not models_dir:
+            return "N/A"
+        try:
+            drive = Path(models_dir).resolve().drive
+        except OSError:
+            return "?"
+        if not drive:
+            return "?"
+        return drive.replace(":", "").upper()
 
     def _update_mode_banner(self):
         if not hasattr(self, "mode_item"):
@@ -785,6 +817,21 @@ class RoninApp(tk.Tk):
             self.canvas.itemconfigure(self.mode_item, text=self._mode_banner_text())
         except (RuntimeError, tk.TclError):
             pass
+
+    def _update_ollama_banner_state_from_status(self, text):
+        if not isinstance(text, str):
+            return
+        upper = text.upper()
+        if "LOCAL - OLLAMA CONNECTED" in upper or "OLLAMA CONNECTED" in upper:
+            self.ollama_banner_state = "READY"
+        elif "OLLAMA NOT FOUND" in upper or "NO OLLAMA" in upper or "NO OLLAMA.EXE" in upper:
+            self.ollama_banner_state = "NO_EXE"
+        elif "OLLAMA FAILED" in upper:
+            self.ollama_banner_state = "FAILED"
+        elif "OLLAMA STILL WAKING" in upper or "LOCAL - WAKING OLLAMA" in upper or "WAKING" in upper:
+            self.ollama_banner_state = "STARTING"
+        elif "OLLAMA" in upper and "CONNECT" in upper:
+            self.ollama_banner_state = "READY"
 
     def _restart_application(self, close_modal=None):
         self._append_session_event("system", "User requested restart from settings.")
@@ -1985,11 +2032,13 @@ class RoninApp(tk.Tk):
 
     def _ensure_ollama_ready(self):
         if self._api_ready():
+            self.ollama_banner_state = "READY"
             self.ollama_ready = True
             self._set_status("LOCAL - OLLAMA CONNECTED")
             return
 
         if not self.ollama_exe:
+            self.ollama_banner_state = "NO_EXE"
             self.ollama_ready = False
             self._set_status("OLLAMA NOT FOUND")
             return
@@ -1998,6 +2047,7 @@ class RoninApp(tk.Tk):
         env["OLLAMA_MODELS"] = self.ollama_models
 
         try:
+            self.ollama_banner_state = "STARTING"
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             subprocess.Popen(
                 [str(self.ollama_exe), "serve"],
@@ -2007,17 +2057,20 @@ class RoninApp(tk.Tk):
                 creationflags=flags,
             )
         except OSError as exc:
+            self.ollama_banner_state = "FAILED"
             self.ollama_ready = False
             self._set_status(f"OLLAMA FAILED: {exc}")
             return
 
         for _ in range(30):
             if self._api_ready():
+                self.ollama_banner_state = "READY"
                 self.ollama_ready = True
                 self._set_status("LOCAL - OLLAMA CONNECTED")
                 return
             time.sleep(0.5)
 
+        self.ollama_banner_state = "STARTING"
         self.ollama_ready = False
         self._set_status("OLLAMA STILL WAKING")
 
@@ -2332,7 +2385,9 @@ class RoninApp(tk.Tk):
             status_text = self._status_with_mode(text)
             self.status_base = status_text
             self.status_dots = 0
+            self._update_ollama_banner_state_from_status(status_text)
             self.canvas.itemconfigure(self.status_item, text=status_text)
+            self._update_mode_banner()
 
         try:
             self.after(0, update)

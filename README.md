@@ -96,6 +96,12 @@ The Settings window can also run a health check, open Skin Tools, open the Vault
 
 If you change Surface layout, save first and use `Restart App` to re-launch the app with the new layout immediately.
 
+At startup, the top-mode banner shows:
+
+- Surface mode
+- Persona mode
+- Ollama status and the model drive letter
+
 ## Skin Assets
 
 The current app can load artwork from `assets\skin_manifest.json`.

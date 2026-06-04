@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3
+
+- Hardened the top mode banner to include Ollama connection state and active model-drive label.
+- Added automatic banner refresh from status updates, keeping startup/runtime status indicators synchronized.
+
 ## 0.9.2
 
 - Added a startup mode banner showing Surface and Persona mode state on the app canvas.
