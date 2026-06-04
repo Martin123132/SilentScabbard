@@ -504,7 +504,14 @@ class RoninApp(tk.Tk):
         self.quote_item = None
         self.meaning_patch = None
         self.meaning_item = None
-        self.mode_patch = self.canvas.create_rectangle(56, 72, 700, 122, fill="#120f0b", outline="#5a4d34")
+        self.mode_patch = self.canvas.create_rectangle(
+            56,
+            72,
+            700,
+            122,
+            fill="#120f0b",
+            outline="#5a4d34",
+        )
         self.mode_item = self.canvas.create_text(
             68,
             74,
@@ -810,11 +817,25 @@ class RoninApp(tk.Tk):
             return "?"
         return drive.replace(":", "").upper()
 
+    def _mode_banner_colors(self):
+        state = self._ollama_banner_state_text()
+        if state == "READY":
+            return "#112015", "#3dcb70", "#e8f7ef"
+        if state == "STARTING":
+            return "#261c10", "#d4a95a", "#f0dec1"
+        if state in {"NO EXE", "FAILED"}:
+            return "#2a1212", "#d85c5c", "#f7dfdf"
+        return "#1f1f1f", "#6a6a6a", "#d3d0c4"
+
     def _update_mode_banner(self):
         if not hasattr(self, "mode_item"):
             return
         try:
             self.canvas.itemconfigure(self.mode_item, text=self._mode_banner_text())
+            if hasattr(self, "mode_patch"):
+                fill, outline, text_fill = self._mode_banner_colors()
+                self.canvas.itemconfigure(self.mode_patch, fill=fill, outline=outline)
+                self.canvas.itemconfigure(self.mode_item, fill=text_fill)
         except (RuntimeError, tk.TclError):
             pass
 

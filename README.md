@@ -100,7 +100,7 @@ At startup, the top-mode banner shows:
 
 - Surface mode
 - Persona mode
-- Ollama status and the model drive letter
+- Ollama status and the model drive letter, with color cues for connection state (ready/starting/failing)
 
 ## Skin Assets
 

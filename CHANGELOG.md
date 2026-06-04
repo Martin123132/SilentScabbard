@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.4
+
+- Added color-coded mode banner styling tied to Ollama readiness state (ready/starting/no-exe/failed).
+- Reused existing mode-banner update path so colors refresh automatically with status changes.
+
 ## 0.9.3
 
 - Hardened the top mode banner to include Ollama connection state and active model-drive label.
