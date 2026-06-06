@@ -120,6 +120,7 @@ class RoninApp(tk.Tk):
         self._build_ui()
         self._start_ollama_in_background()
         self._start_animations()
+        self.after(1200, self._run_startup_health_check)
 
     def _prepare_local_data(self):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -1415,6 +1416,64 @@ class RoninApp(tk.Tk):
         else:
             lines.extend(["", "Health: needs setup or repair."])
         return "\n".join(lines)
+
+    def _is_model_present(self, settings):
+        settings = self._clean_settings(settings)
+        ollama_exe = Path(settings["ollama_exe"]) if settings.get("ollama_exe") else None
+        model_name = settings["model_name"]
+        model_dir = settings["ollama_models"]
+
+        if not ollama_exe or not ollama_exe.exists():
+            return False
+
+        env = os.environ.copy()
+        env["OLLAMA_MODELS"] = model_dir
+        try:
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            result = subprocess.run(
+                [str(ollama_exe), "list"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                creationflags=flags,
+            )
+            return bool(re.search(rf"(?m)^{re.escape(model_name)}(?::latest)?\s", result.stdout))
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    def _run_startup_health_check(self):
+        if not hasattr(self, "canvas"):
+            return
+
+        settings = self._current_settings()
+
+        def work():
+            health_text = self._settings_health_text(settings).lower()
+            if "health: ready." in health_text:
+                self.after(0, lambda: self._set_status("LOCAL READY"))
+                self.after(0, lambda: self._append_session_event("system", "Startup health check passed."))
+                return
+
+            # Minimal guidance for users without terminal visibility.
+            if not settings.get("ollama_exe"):
+                detail = "Repair needed: Ollama executable missing. Open Settings and use Repair Install."
+                status = "OLLAMA MISSING"
+            elif not self._api_ready():
+                detail = "Ollama is starting. If this persists, open Settings and use Repair Install."
+                status = "OLLAMA STARTING"
+            elif not self._is_model_present(settings):
+                detail = "Model is missing from the configured cache. Rebuild in Settings after repair."
+                status = "MODEL MISSING"
+            else:
+                detail = "Local setup needs attention. Open Settings and run Repair Install."
+                status = "SETUP NEEDED"
+
+            self.after(0, lambda: self._show_meaning(detail, typed=True))
+            self.after(0, lambda: self._set_status(status))
+            self.after(0, lambda: self._append_session_event("system", f"Startup health: {status}"))
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _directory_size_gb(self, path):
         if not path.exists():

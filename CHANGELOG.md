@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.9
+
+- Added a startup health probe that checks Ollama executable/API/model on launch and surfaces clear one-click repair guidance in the character UI.
+- Startup now updates status/messaging automatically: `LOCAL READY` when healthy, or targeted setup hints when dependencies need attention.
+- Session behavior, memory, and vault remain unchanged.
+
 ## 0.9.8
 
 - Improved Settings → Repair Install workflow to include a post-repair health summary in the output panel.

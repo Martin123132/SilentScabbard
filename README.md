@@ -102,7 +102,8 @@ At startup, the top-mode banner shows:
 
 - Surface mode
 - Persona mode
-- Ollama status and the model drive letter, with color cues for connection state (ready/starting/failing)
+- Ollama status and the model drive letter, with color cues for connection state (ready/starting/failing).
+- If dependencies are misconfigured, the status and meaning area also shows the next setup step and points users to **Settings → Repair Install**.
 
 ## Skin Assets
 
