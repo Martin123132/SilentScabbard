@@ -1082,6 +1082,20 @@ class RoninApp(tk.Tk):
 
             threading.Thread(target=work, daemon=True).start()
 
+        def run_repair():
+            set_output("Running install repair...")
+            self._set_status("REPAIRING")
+
+            def work():
+                text = self._run_powershell_helper("repair-windows.ps1", timeout=300)
+                self.after(0, lambda: set_output(text))
+                exit_match = re.search(r"Exit code:\s*(-?\d+)", text)
+                status_code = int(exit_match.group(1)) if exit_match else None
+                status = "REPAIR DONE" if status_code == 0 else "REPAIR COMPLETE"
+                self.after(0, lambda: self._set_status(status))
+
+            threading.Thread(target=work, daemon=True).start()
+
         def open_data_folder():
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             if hasattr(os, "startfile"):
@@ -1092,6 +1106,7 @@ class RoninApp(tk.Tk):
         buttons.pack(fill="x", pady=(12, 0))
         self._modal_button(buttons, "Save", save_settings).pack(side="left")
         self._modal_button(buttons, "Health Check", run_health_check).pack(side="left", padx=(10, 0))
+        self._modal_button(buttons, "Repair Install", run_repair).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Skin Tools", self.open_skin_tools_viewer).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Open Vault", self.open_vault_viewer).pack(side="left", padx=(10, 0))
         self._modal_button(buttons, "Data Folder", open_data_folder).pack(side="left", padx=(10, 0))

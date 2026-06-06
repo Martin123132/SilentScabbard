@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.7
+
+- Added an in-app **Repair Install** button to Settings for users who need one-click startup dependency refresh.
+- Repair action now runs `repair-windows.ps1` directly from the UI and reports output in the settings panel.
+- Added a quick repair status update so users can recover shortcuts/settings/model wiring without opening terminal scripts.
+
 ## 0.9.6
 
 - Added stronger launch/recovery checks to keep one-click startup more resilient.
