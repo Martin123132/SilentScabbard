@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.8
+
+- Improved Settings → Repair Install workflow to include a post-repair health summary in the output panel.
+- Repair status now clearly distinguishes successful repair + health validation vs repair-only vs repair failure.
+- No model, memory, or vault behavior was changed.
+
 ## 0.9.7
 
 - Added an in-app **Repair Install** button to Settings for users who need one-click startup dependency refresh.

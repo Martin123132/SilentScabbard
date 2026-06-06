@@ -1087,11 +1087,28 @@ class RoninApp(tk.Tk):
             self._set_status("REPAIRING")
 
             def work():
-                text = self._run_powershell_helper("repair-windows.ps1", timeout=300)
-                self.after(0, lambda: set_output(text))
-                exit_match = re.search(r"Exit code:\s*(-?\d+)", text)
+                repair_output = self._run_powershell_helper("repair-windows.ps1", timeout=360)
+                exit_match = re.search(r"Exit code:\s*(-?\d+)", repair_output)
                 status_code = int(exit_match.group(1)) if exit_match else None
-                status = "REPAIR DONE" if status_code == 0 else "REPAIR COMPLETE"
+
+                health_output = ""
+                if status_code is None or status_code == 0:
+                    health_output = self._settings_health_text(self._clean_settings(settings_from_fields()))
+
+                health_ok = "health: ready." in health_output.lower()
+                if status_code == 0 and health_ok:
+                    status = "REPAIR HEALTH OK"
+                elif status_code == 0:
+                    status = "REPAIR COMPLETE"
+                else:
+                    status = "REPAIR FAILED"
+
+                if health_output:
+                    text = "\n\n".join([repair_output.strip(), "Health after repair:", health_output])
+                else:
+                    text = repair_output
+
+                self.after(0, lambda: set_output(text))
                 self.after(0, lambda: self._set_status(status))
 
             threading.Thread(target=work, daemon=True).start()
