@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.6
+
+- Added stronger launch/recovery checks to keep one-click startup more resilient.
+- `launch-ronin.ps1` now validates launcher/app files, checks disk warnings, and shows clear repair next steps.
+- `run-ronin.ps1` now checks launch prerequisites and model presence before invoking Ollama directly.
+- `health-check.ps1` now reports launcher/app file presence and includes them in readiness requirements.
+- `repair-windows.ps1` now prints shortcut status before/after repair to help diagnose drift.
+
 ## 0.9.5
 
 - Improved launch scripts with clearer dependency/preflight checks before startup.

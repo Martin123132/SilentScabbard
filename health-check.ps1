@@ -167,9 +167,13 @@ $pythonw = Find-Pythonw
 $ollama = Find-Ollama
 $modelDir = Resolve-ModelDir
 $modelName = Resolve-ModelName
+$launcher = Join-Path $appDir 'launch-ronin.vbs'
+$appFile = Join-Path $appDir 'ronin_desktop.pyw'
 $cDefaultModels = Join-Path $env:USERPROFILE '.ollama\models'
 $settingsReady = Test-Path -LiteralPath (Join-Path $appDir 'data\settings.json')
 $localOverrideReady = Test-Path -LiteralPath $localConfig
+$launcherReady = Test-Path $launcher
+$appReady = Test-Path $appFile
 $shortcutStatus = Get-ShortcutStatus
 $cDrive = Get-PSDrive C -ErrorAction SilentlyContinue
 $dDrive = Get-PSDrive D -ErrorAction SilentlyContinue
@@ -205,6 +209,8 @@ Write-Host "Ollama version:   $ollamaVersion"
 Write-Host "Model name:       $modelName"
 Write-Host "Model directory:  $modelDir"
 Write-Host "Model present:    $(if ($roninModel) { 'yes' } else { 'no' })"
+Write-Host "Launcher script:  $(if ($launcherReady) { 'ready' } else { 'missing' })"
+Write-Host "App file:         $(if ($appReady) { 'ready' } else { 'missing' })"
 Write-Host "Settings file:    $(if ($settingsReady) { 'ready' } else { 'missing' })"
 Write-Host "Local override:   $(if ($localOverrideReady) { 'ready' } else { 'missing' })"
 Write-Host "Desktop shortcut: $($shortcutStatus.Text)"
@@ -217,6 +223,7 @@ Get-PSDrive C,D -ErrorAction SilentlyContinue |
 Write-Host 'Expected install file: START_HERE_WINDOWS.bat'
 Write-Host 'Expected repair file:  REPAIR_INSTALL_WINDOWS.bat'
 Write-Host 'Expected launch file:  launch-ronin.vbs'
+Write-Host 'Expected launch app:    ronin_desktop.pyw'
 Write-Host ''
 
 if ($cDrive -and $cDrive.Free -lt 8GB) {
@@ -232,7 +239,7 @@ if ($modelDir -like 'C:\Users\*\.ollama*') {
     Write-Host "Warning: model directory points at the default C cache: $modelDir" -ForegroundColor Yellow
 }
 
-if (-not $python -or -not $pythonw -or -not $ollama -or -not $roninModel -or -not $settingsReady -or -not $localOverrideReady -or -not $shortcutStatus.Ready) {
+if (-not $python -or -not $pythonw -or -not $launcherReady -or -not $appReady -or -not $ollama -or -not $roninModel -or -not $settingsReady -or -not $localOverrideReady -or -not $shortcutStatus.Ready) {
     Write-Host 'Health: needs setup or repair.' -ForegroundColor Yellow
     Write-Host 'Run REPAIR_INSTALL_WINDOWS.bat to refresh settings and the shortcut without deleting local data.' -ForegroundColor Yellow
     Write-Host 'Run START_HERE_WINDOWS.bat if the local model is missing and needs to be created.' -ForegroundColor Yellow

@@ -89,6 +89,37 @@ function Resolve-ModelName {
     return 'ronin'
 }
 
+function Get-ShortcutStatus {
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $shortcutPath = Join-Path $desktop 'Ronin.lnk'
+    if (-not (Test-Path -LiteralPath $shortcutPath)) {
+        return [pscustomobject]@{
+            Exists = $false
+            Ready = $false
+            Text = "missing ($shortcutPath)"
+        }
+    }
+
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $expectedTarget = [System.IO.Path]::GetFullPath((Join-Path $appDir 'launch-ronin.vbs'))
+        $actualTarget = [System.IO.Path]::GetFullPath($shortcut.TargetPath)
+        $ready = $actualTarget.Equals($expectedTarget, [System.StringComparison]::OrdinalIgnoreCase)
+        return [pscustomobject]@{
+            Exists = $true
+            Ready = $ready
+            Text = "points to $actualTarget"
+        }
+    } catch {
+        return [pscustomobject]@{
+            Exists = $true
+            Ready = $false
+            Text = "could not inspect ($shortcutPath)"
+        }
+    }
+}
+
 function Wait-Ollama {
     param([int]$Seconds = 20)
 
@@ -176,10 +207,21 @@ Write-Host "Pythonw: $(if ($pythonw) { $pythonw } else { 'not found' })"
 Write-Host "Ollama: $ollama"
 Write-Host "Models: $modelDir"
 Write-Host "Model name: $modelName"
+if (Test-Path (Join-Path $appDir 'ronin_desktop.pyw')) {
+    Write-Host "App file: yes"
+} else {
+    Write-Host "App file: no" -ForegroundColor Yellow
+}
 Write-Host ''
 
 Write-Host 'Refreshing Desktop shortcut...'
+$shortcutStatusBefore = Get-ShortcutStatus
 & (Join-Path $appDir 'install-shortcut.ps1') | Out-Host
+$shortcutStatusAfter = Get-ShortcutStatus
+if ($shortcutStatusBefore.Ready -eq $false -or $shortcutStatusAfter.Text -ne $shortcutStatusBefore.Text) {
+    Write-Host "Shortcut status before: $($shortcutStatusBefore.Text)" -ForegroundColor Gray
+    Write-Host "Shortcut status after:  $($shortcutStatusAfter.Text)" -ForegroundColor Gray
+}
 
 try {
     Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/version' -TimeoutSec 2 | Out-Null

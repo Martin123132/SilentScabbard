@@ -72,11 +72,40 @@ function Resolve-ModelDir {
     return (Join-Path $appDir 'data\ollama-models')
 }
 
+function Get-DriveFreeGb {
+    param([string]$Drive)
+    $driveInfo = Get-PSDrive -Name $Drive -ErrorAction SilentlyContinue
+    if (-not $driveInfo) {
+        return $null
+    }
+    return [math]::Round($driveInfo.Free / 1GB, 2)
+}
+
 if (-not $env:OLLAMA_MODELS) {
     $env:OLLAMA_MODELS = Resolve-ModelDir
 }
 
 $modelDir = $env:OLLAMA_MODELS
+$launcher = Join-Path $appDir 'launch-ronin.vbs'
+$app = Join-Path $appDir 'ronin_desktop.pyw'
+
+Write-Host 'Preparing SilentScabbard launch...' -ForegroundColor DarkYellow
+$python = Find-Python
+$pythonw = Find-Pythonw
+$ollama = Find-Ollama
+
+if (-not $launcher -or -not (Test-Path $launcher)) {
+    Write-Host "Launch helper missing: $launcher" -ForegroundColor Red
+    Write-Host 'Run START_HERE_WINDOWS.BAT or REPAIR_INSTALL_WINDOWS.BAT to restore startup wiring.' -ForegroundColor Yellow
+    exit 1
+}
+
+if (-not (Test-Path $app)) {
+    Write-Host "App file missing: $app" -ForegroundColor Red
+    Write-Host 'Reinstall or extract the release zip again, then run REPAIR_INSTALL_WINDOWS.BAT.' -ForegroundColor Yellow
+    exit 1
+}
+
 if (Test-Path 'D:\') {
     if ($modelDir -notlike 'D:\*') {
         Write-Host "Note: D: exists but model cache is not on D: $modelDir" -ForegroundColor Yellow
@@ -86,10 +115,24 @@ if (Test-Path 'D:\') {
     }
 }
 
-Write-Host 'Preparing SilentScabbard launch...' -ForegroundColor DarkYellow
-$python = Find-Python
-$pythonw = Find-Pythonw
-$ollama = Find-Ollama
+if ($modelDir -and -not (Test-Path $modelDir)) {
+    try {
+        New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
+    } catch {
+        Write-Host "Failed to create model directory: $modelDir" -ForegroundColor Red
+        Write-Host 'Check folder permissions and disk space, then run REPAIR_INSTALL_WINDOWS.BAT.' -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+$cFree = Get-DriveFreeGb 'C'
+$dDrive = Get-PSDrive D -ErrorAction SilentlyContinue
+if ($null -ne $cFree -and $cFree -lt 8) {
+    Write-Host "Warning: C: has only $cFree GB free. Keep model cache off C: when possible." -ForegroundColor Yellow
+}
+if ($dDrive -and $modelDir -like 'D:\*' -and $dDrive.Free / 1GB -lt 10) {
+    Write-Host 'Warning: D: has limited space for model cache. New models may fail to download.' -ForegroundColor Yellow
+}
 
 if (-not $python) {
     Write-Host 'Python 3 was not found. Install Python 3.11+ and run setup/repair again.' -ForegroundColor Red
@@ -103,17 +146,10 @@ if (-not $ollama) {
     exit 1
 }
 
-if (-not (Test-Path $modelDir)) {
-    New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
-}
-
 Write-Host "Python: $python"
 Write-Host "Launch runtime: $(if ($pythonw) { $pythonw } else { "$python (fallback)" })"
 Write-Host "Ollama: $ollama"
 Write-Host "Model cache: $modelDir"
-
-$app = Join-Path $appDir 'ronin_desktop.pyw'
-
 if ($pythonw) {
     if ($pythonw -eq $python) {
         Write-Host 'pythonw.exe was not found; launching with python.exe. A console window may appear.' -ForegroundColor Yellow
