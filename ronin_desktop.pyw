@@ -97,6 +97,9 @@ class RoninApp(tk.Tk):
         self.meaning_full_text = ""
         self.quote_index = 0
         self.meaning_index = 0
+        self._repair_in_progress = False
+        self.startup_repair_button = None
+        self.startup_repair_button_window = None
         self.stoic_riddle = False
         self.samurai_surface_enabled = True
         self.whisper_mode = False
@@ -532,6 +535,31 @@ class RoninApp(tk.Tk):
             fill="#d2c3a0",
             font=self.font_status,
             anchor="center",
+        )
+        self.startup_repair_button = tk.Button(
+            self,
+            text="TRY REPAIR NOW",
+            command=self._run_startup_repair,
+            bg="#2a251d",
+            fg="#e8d7b8",
+            activebackground="#3a2f25",
+            activeforeground="#fff2d7",
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=2,
+            font=self.font_status,
+            cursor="hand2",
+            state="disabled",
+        )
+        self.startup_repair_button_window = self.canvas.create_window(
+            1003,
+            34,
+            anchor="nw",
+            width=117,
+            height=23,
+            window=self.startup_repair_button,
+            state="hidden",
         )
         self._update_mode_banner()
 
@@ -1084,35 +1112,7 @@ class RoninApp(tk.Tk):
             threading.Thread(target=work, daemon=True).start()
 
         def run_repair():
-            set_output("Running install repair...")
-            self._set_status("REPAIRING")
-
-            def work():
-                repair_output = self._run_powershell_helper("repair-windows.ps1", timeout=360)
-                exit_match = re.search(r"Exit code:\s*(-?\d+)", repair_output)
-                status_code = int(exit_match.group(1)) if exit_match else None
-
-                health_output = ""
-                if status_code is None or status_code == 0:
-                    health_output = self._settings_health_text(self._clean_settings(settings_from_fields()))
-
-                health_ok = "health: ready." in health_output.lower()
-                if status_code == 0 and health_ok:
-                    status = "REPAIR HEALTH OK"
-                elif status_code == 0:
-                    status = "REPAIR COMPLETE"
-                else:
-                    status = "REPAIR FAILED"
-
-                if health_output:
-                    text = "\n\n".join([repair_output.strip(), "Health after repair:", health_output])
-                else:
-                    text = repair_output
-
-                self.after(0, lambda: set_output(text))
-                self.after(0, lambda: self._set_status(status))
-
-            threading.Thread(target=work, daemon=True).start()
+            self._run_repair_workflow(set_output, settings=self._clean_settings(settings_from_fields()))
 
         def open_data_folder():
             DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -1343,6 +1343,74 @@ class RoninApp(tk.Tk):
             return f"{script_name} failed to launch:\n{exc}"
         return f"Launched {script_name}."
 
+    def _set_startup_repair_button_visible(self, visible):
+        if not self.startup_repair_button_window:
+            return
+        state = "normal" if visible else "hidden"
+        self.after(0, lambda: self.canvas.itemconfigure(self.startup_repair_button_window, state=state))
+        if self.startup_repair_button:
+            button_state = "normal" if visible else "disabled"
+            self.after(0, lambda: self.startup_repair_button.configure(state=button_state))
+
+    def _run_repair_workflow(self, output_handler, settings=None):
+        if not callable(output_handler):
+            return
+
+        if self._repair_in_progress:
+            output_handler("Repair is already running.")
+            return
+
+        settings = self._clean_settings(settings) if settings else self._current_settings()
+        self._repair_in_progress = True
+        self._set_startup_repair_button_visible(False)
+        if self.startup_repair_button:
+            self.after(0, lambda: self.startup_repair_button.configure(state="disabled"))
+        output_handler("Running install repair...")
+        self._set_status("REPAIRING")
+
+        def work():
+            repair_output = self._run_powershell_helper("repair-windows.ps1", timeout=360)
+            exit_match = re.search(r"Exit code:\s*(-?\d+)", repair_output)
+            status_code = int(exit_match.group(1)) if exit_match else None
+
+            health_output = ""
+            if status_code is None or status_code == 0:
+                health_output = self._settings_health_text(settings)
+
+            health_ok = "health: ready." in health_output.lower()
+            if status_code == 0 and health_ok:
+                status = "REPAIR HEALTH OK"
+            elif status_code == 0:
+                status = "REPAIR COMPLETE"
+            else:
+                status = "REPAIR FAILED"
+
+            if health_output:
+                text = "\n\n".join([repair_output.strip(), "Health after repair:", health_output])
+            else:
+                text = repair_output
+
+            def finish():
+                self._append_session_event(
+                    "system",
+                    f"Repair finished with status {status_code if status_code is not None else 'unknown'}.",
+                )
+                output_handler(text)
+                self._set_status(status)
+                self._set_startup_repair_button_visible(not health_ok)
+                if self.startup_repair_button:
+                    self.startup_repair_button.configure(state="normal")
+                self._repair_in_progress = False
+                if health_ok:
+                    self._append_session_event("system", "Repair completed and startup health is now ready.")
+
+            self.after(0, finish)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _run_startup_repair(self):
+        self._run_repair_workflow(lambda text: self._show_meaning(text, typed=True))
+
     def _settings_warning(self, settings):
         model_dir = settings.get("ollama_models", "")
         if re.match(r"^[cC]:\\", model_dir):
@@ -1453,6 +1521,7 @@ class RoninApp(tk.Tk):
             if "health: ready." in health_text:
                 self.after(0, lambda: self._set_status("LOCAL READY"))
                 self.after(0, lambda: self._append_session_event("system", "Startup health check passed."))
+                self.after(0, lambda: self._set_startup_repair_button_visible(False))
                 return
 
             # Minimal guidance for users without terminal visibility.
@@ -1471,6 +1540,7 @@ class RoninApp(tk.Tk):
 
             self.after(0, lambda: self._show_meaning(detail, typed=True))
             self.after(0, lambda: self._set_status(status))
+            self.after(0, lambda: self._set_startup_repair_button_visible(True))
             self.after(0, lambda: self._append_session_event("system", f"Startup health: {status}"))
 
         threading.Thread(target=work, daemon=True).start()

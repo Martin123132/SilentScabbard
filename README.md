@@ -104,6 +104,7 @@ At startup, the top-mode banner shows:
 - Persona mode
 - Ollama status and the model drive letter, with color cues for connection state (ready/starting/failing).
 - If dependencies are misconfigured, the status and meaning area also shows the next setup step and points users to **Settings → Repair Install**.
+- When startup detects setup drift, a **Try Repair** quick button appears on the top status area to run recovery without opening Settings.
 
 ## Skin Assets
 

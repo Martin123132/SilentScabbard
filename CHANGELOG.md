@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.10
+
+- Added a startup quick-action repair button (`TRY REPAIR`) in the status area so users can recover drift directly from the launch surface.
+- Centralized repair execution logic so Settings and startup recovery share the same health check + repair report path.
+- Still no changes to chat, memory, or vault behavior.
+
 ## 0.9.9
 
 - Added a startup health probe that checks Ollama executable/API/model on launch and surfaces clear one-click repair guidance in the character UI.
